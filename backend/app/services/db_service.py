@@ -79,6 +79,7 @@ class DBService:
             self._ensure_column(conn, "users", "face_profile_embedding", "BLOB")
             self._ensure_column(conn, "users", "photo_blob", "BLOB")
             self._ensure_column(conn, "users", "profile_photo_blob", "BLOB")
+            self._ensure_column(conn, "users", "deleted_at", "TEXT")
             self._ensure_column(conn, "access_logs", "direction", "TEXT")
             self._ensure_column(conn, "access_logs", "door_id", "TEXT")
         logger.info(f"БД инициализирована: {self.db_path}")
@@ -163,7 +164,7 @@ class DBService:
             row = conn.execute("SELECT * FROM users WHERE nfc_uid=? AND is_active=1", (nfc_uid,)).fetchone()
             return dict(row) if row else None
 
-    def list_users(self, include_inactive: bool = True) -> List[Dict[str, Any]]:
+    def list_users(self, include_inactive: bool = True, include_deleted: bool = False) -> List[Dict[str, Any]]:
         sql = """
             SELECT u.*,
               (SELECT created_at FROM access_logs l WHERE l.user_id=u.id AND l.direction='in' AND l.event_type='granted' ORDER BY l.id DESC LIMIT 1) AS last_entry,
@@ -171,8 +172,13 @@ class DBService:
               (SELECT COUNT(*) FROM access_logs l WHERE l.user_id=u.id) AS total_events
             FROM users u
         """
+        filters = []
         if not include_inactive:
-            sql += " WHERE u.is_active=1"
+            filters.append("u.is_active=1")
+        if not include_deleted:
+            filters.append("u.deleted_at IS NULL")
+        if filters:
+            sql += " WHERE " + " AND ".join(filters)
         sql += " ORDER BY u.created_at DESC"
         with self._get_conn() as conn:
             return [self._row_user(row) for row in conn.execute(sql).fetchall()]
@@ -221,8 +227,11 @@ class DBService:
             if hard:
                 cur = conn.execute("DELETE FROM users WHERE id=?", (user_id,))
             else:
-                cur = conn.execute("UPDATE users SET is_active=0,updated_at=? WHERE id=?",
-                                   (datetime.now(timezone.utc).isoformat(), user_id))
+                now = datetime.now(timezone.utc).isoformat()
+                cur = conn.execute(
+                    "UPDATE users SET is_active=0,deleted_at=?,updated_at=? WHERE id=?",
+                    (now, now, user_id),
+                )
             return cur.rowcount > 0
 
     def record_biometric_consent(self, user_id: int, admin_id: int, purpose: str = "Регистрация биометрического шаблона") -> None:
