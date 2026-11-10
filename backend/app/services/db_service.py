@@ -156,7 +156,7 @@ class DBService:
             return None
         user = dict(row)
         user["is_active"] = int(user.get("is_active") or 0)
-        user["face_enrolled"] = int(bool(user.get("face_embedding")))
+        user["face_enrolled"] = int(bool(user.get("face_embedding")) or bool(user.get("face_profile_embedding")))
         user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
         for private_field in ("face_embedding", "face_profile_embedding", "pin_hash", "fingerprint_hash"):
             user.pop(private_field, None)
@@ -349,10 +349,12 @@ class DBService:
         photo = self._photo_blob(front_photo)
         profile_photo_blob = self._photo_blob(profile_photo)
         with self._get_conn() as conn:
-            conn.execute(
-                "UPDATE users SET face_embedding=?,face_profile_embedding=?,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=?",
+            cur = conn.execute(
+                "UPDATE users SET face_embedding=?,face_profile_embedding=?,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
                 (front, profile, photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
             )
+            if cur.rowcount != 1:
+                raise ValueError("Профиль сотрудника не найден или уже удалён. Биометрия не сохранена.")
 
     def find_similar_faces(self, user_id: int, landmarks: List[List[float]], limit: int = 5) -> List[Dict[str, Any]]:
         target = [v for point in landmarks for v in point[:3]]
