@@ -576,7 +576,7 @@ async def simulate_test_card(body: TestCardRequest, request: Request):
     )
     admin_auth_service.audit(actor["id"], "access.test_card_simulated", str(event_id), "No access policy or relay action executed")
     return {"success": True, "simulation": True, "event_id": event_id,
-            "message": "Тестовое событие записано. Реальный доступ и замок не затрагивались."}
+            "message": "Виртуальная карта принята в тестовом режиме. Это имитация: проверка личности, политика доступа и физический замок не задействованы."}
 
 
 @app.get("/api/access/doors")
