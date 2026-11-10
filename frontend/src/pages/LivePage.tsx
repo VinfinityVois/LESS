@@ -85,7 +85,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     } finally { setTestCardBusy(false); }
   };
   const granted = logs.filter((log) => log.event_type === "granted").length;
-  const denied = logs.filter((log) => log.event_type !== "granted").length;
+  const denied = logs.filter((log) => log.event_type !== "granted" && log.event_type !== "simulated").length;
   const unknownIdentity = logs.find((log) => {
     const reason = log.reason || "";
     const age = Date.now() - new Date(log.created_at).getTime();
@@ -106,7 +106,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     <div className={`live-grid ${externalDisplayMode ? `live-grid--external live-grid--external-${externalDisplayMode}` : ""}`}>
       <section className="camera-column">
         <div className="camera-monitor-block">
-        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void runTestCard()} disabled={testCardBusy} title="Только тестовая запись в журнал; замок не активируется"><Nfc size={14}/>{testCardBusy ? "Запись…" : "Тестовая карта"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
+        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void runTestCard()} disabled={testCardBusy} title="Только тестовая запись в журнал; замок не активируется"><Nfc size={14}/>{testCardBusy ? "Запись…" : "Тестовая карта · временно"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
         {displayMessage && <p className="users-message" role="status">{displayMessage}</p>}
         <div className={`camera-frame ${externalDisplayActive ? "camera-frame--relayed" : ""}`}>
           {externalDisplayMode !== "video" && <VideoFeed />}
