@@ -23,7 +23,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
-  const [externalDisplayActive, setExternalDisplayActive] = useState(false);
+  const [externalDisplayActive, setExternalDisplayActive] = useState(() => localStorage.getItem("less-external-display-active") === "1");
   const load = useCallback(async () => {
     try { setLogs(await getLogs(40)); } catch { setLogs([]); }
   }, []);
@@ -36,13 +36,14 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   // Use the backend's actual status values; "running" and "connected" are not "ok".
   const cameraOk = status?.camera === "running";
   const serialOk = status?.serial === "connected";
-  const openExternalDisplay = async () => {
+  const openExternalDisplay = async (mode: "video" | "events") => {
     setDisplayBusy(true);
     setDisplayMessage("");
     try {
-      await openCameraOnExternalDisplay();
+      await openCameraOnExternalDisplay(mode);
+      localStorage.setItem("less-external-display-active", "1");
       setExternalDisplayActive(true);
-      setDisplayMessage("Видео выведено на дополнительный монитор. Основное окно переключено на события и данные поста.");
+      setDisplayMessage("На дополнительном мониторе открыт режим: ${mode === "video" ? "видео" : "события"}.");
     } catch (error) {
       setDisplayMessage(error instanceof Error ? error.message : "Не удалось открыть дополнительный экран.");
     } finally {
@@ -67,7 +68,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
     <div className={`live-grid ${externalDisplayActive ? "live-grid--external" : ""}`}>
       <section className="camera-column">
-        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay()} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. монитор"}</button></div></div>
+        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button></div></div>
         {!externalDisplayActive ? <div className="camera-frame">
           <VideoFeed />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
