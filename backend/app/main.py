@@ -189,7 +189,7 @@ class LivenessChallengeRequest(BaseModel):
 
 class LivenessActionEvidence(BaseModel):
     action: str = Field(pattern="^(blink|turn_head|open_mouth)$")
-    frames: list[str] = Field(min_length=4, max_length=8)
+    frames: list[str] = Field(min_length=8, max_length=12)
 
     @field_validator("frames")
     @classmethod
