@@ -307,6 +307,7 @@ async def verify_liveness(body: LivenessVerifyRequest, request: Request):
             "message": message,
             "failed_action": action,
             "signal_delta": result.get("signal_delta"),
+            "diagnostics": result.get("diagnostics"),
             "results": result.get("results", []),
         })
     return result
