@@ -9,12 +9,14 @@ export class LessWebSocket {
   private onJson: MessageHandler | null = null;
   private onBinary: BinaryHandler | null = null;
   private reconnectTimer: number | null = null;
+  private manuallyDisconnected = false;
 
   constructor(url = "ws://127.0.0.1:8000/ws") {
     this.url = url;
   }
 
   connect() {
+    this.manuallyDisconnected = false;
     if (!getAuthToken()) return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
@@ -49,6 +51,7 @@ export class LessWebSocket {
 
     this.ws.onclose = (event) => {
       console.log("[WS] closed");
+      if (this.manuallyDisconnected) return;
       if (event.code === 4401) {
         setAuthToken(null);
         window.dispatchEvent(new Event("less:auth-expired"));
@@ -85,6 +88,7 @@ export class LessWebSocket {
   }
 
   disconnect() {
+    this.manuallyDisconnected = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
