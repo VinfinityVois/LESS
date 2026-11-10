@@ -374,14 +374,14 @@ class DBService:
     def save_face_profile(self, user_id: int, front_landmarks: List[List[float]],
                           profile_landmarks: List[List[float]], front_photo: str,
                           profile_photo: str) -> None:
-        front = self._encrypt(json.dumps(front_landmarks, separators=(",", ":")).encode())
-        profile = self._encrypt(json.dumps(profile_landmarks, separators=(",", ":")).encode())
+        # MediaPipe landmarks are used only for pose guidance in the client;
+        # identity templates are the separately generated encrypted SFace vectors.
         photo = self._photo_blob(front_photo)
         profile_photo_blob = self._photo_blob(profile_photo)
         with self._get_conn() as conn:
             cur = conn.execute(
-                "UPDATE users SET face_embedding=?,face_profile_embedding=?,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
-                (front, profile, photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
+                "UPDATE users SET face_embedding=NULL,face_profile_embedding=NULL,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
+                (photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
             )
             if cur.rowcount != 1:
                 raise ValueError("Профиль сотрудника не найден или уже удалён. Биометрия не сохранена.")
