@@ -445,8 +445,8 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
     if len(body.front_photo) > 8_000_000 or len(body.profile_photo) > 8_000_000:
         raise HTTPException(status_code=413, detail="Изображение превышает допустимый размер.")
     try:
-        front = face_recognition_service.embedding_from_image(body.front_photo)
-        profile = face_recognition_service.embedding_from_image(body.profile_photo)
+        front = await asyncio.to_thread(face_recognition_service.embedding_from_image, body.front_photo)
+        profile = await asyncio.to_thread(face_recognition_service.embedding_from_image, body.profile_photo)
         candidates = db_service.find_similar_face_vectors(
             user_id=user_id, front_vector=front["embedding"],
             profile_vector=profile["embedding"], limit=5,
