@@ -38,6 +38,11 @@ class Settings(BaseSettings):
     SERIAL_BAUDRATE: int = 115200
     SERIAL_TIMEOUT: float = 1.0
 
+    # Authenticated door-controller protocol (separate key from SECRET_KEY)
+    CONTROLLER_HMAC_KEY: str = ""
+    CONTROLLER_ID: str = ""
+    CONTROLLER_ACK_TIMEOUT: float = 4.0
+
     # AI
     AI_ANOMALY_WINDOW_MINUTES: int = 60
     AI_FAILED_ATTEMPTS_THRESHOLD: int = 5
