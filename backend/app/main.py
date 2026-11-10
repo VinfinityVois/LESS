@@ -203,6 +203,7 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest):
     db_service.save_face_profile(
         user_id=user_id, front_landmarks=body.front_landmarks,
         profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
+        profile_photo=body.profile_photo,
     )
     return {
         "success": True,
