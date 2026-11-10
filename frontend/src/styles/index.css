@@ -77,3 +77,19 @@ html,body,#root{margin:0;width:100%;min-height:100%;background:var(--bg)}body{fo
 @media(max-width:600px){
   .camera-frame{aspect-ratio:4/3;min-height:280px}
 }
+
+/* Dedicated full-screen output window for an auxiliary guard monitor. */
+.camera-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.camera-display-button{padding:8px 10px}
+.camera-display-message{margin:0 0 10px;color:var(--cyan);font-size:10px}
+.camera-display{position:fixed;inset:0;display:flex;flex-direction:column;background:#05090d;color:#e8f1f1}
+.camera-display__bar,.camera-display__footer{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 18px;background:#0b1319;border-bottom:1px solid rgba(157,183,194,.16);font:10px var(--mono);letter-spacing:.08em}
+.camera-display__bar>div{display:flex;align-items:center;gap:10px}
+.camera-display__bar small,.camera-display__footer{color:#71858b}
+.camera-display__live{width:7px;height:7px;border-radius:50%;background:#8bd5a5;box-shadow:0 0 10px rgba(139,213,165,.65)}
+.camera-display__bar button{display:flex;align-items:center;gap:7px;border:1px solid rgba(157,183,194,.2);border-radius:7px;padding:7px 10px;background:#14212a;color:#b9c9cb;font-size:10px}
+.camera-display__viewport{position:relative;flex:1;min-height:0;background:#000}
+.camera-display__viewport>div{position:absolute;inset:0}
+.camera-display__viewport img{object-fit:contain!important}
+.camera-display__footer{border-top:1px solid rgba(157,183,194,.12);border-bottom:0}
+@media(max-width:650px){.camera-actions{justify-content:flex-start}.camera-display__bar,.camera-display__footer{padding:9px 11px;font-size:8px}.camera-display__bar small{display:none}}
