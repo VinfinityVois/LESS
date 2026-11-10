@@ -13,6 +13,9 @@ from typing import Any
 import cv2
 import mediapipe as mp
 import numpy as np
+from pathlib import Path
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision
 
 
 class LivenessService:
@@ -21,6 +24,7 @@ class LivenessService:
     MAX_FRAME_BYTES = 1_500_000
     MIN_ACTION_FRAMES = 8
     MAX_ACTION_FRAMES = 12
+    MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "face_landmarker.task"
     ACTIONS = ("blink", "turn_head", "open_mouth")
 
     def __init__(self) -> None:
@@ -73,7 +77,7 @@ class LivenessService:
         width = np.linalg.norm(np.array([left.x - right.x, left.y - right.y]))
         return float(height / max(width, 1e-6))
 
-    def _landmarks(self, frame_data: str, mesh: Any) -> list[Any]:
+    def _landmarks(self, frame_data: str, landmarker: Any) -> list[Any]:
         if not isinstance(frame_data, str) or "," not in frame_data:
             raise ValueError("Некорректный кадр проверки присутствия.")
         try:
@@ -85,11 +89,13 @@ class LivenessService:
         image = cv2.imdecode(np.frombuffer(raw, dtype=np.uint8), cv2.IMREAD_COLOR)
         if image is None:
             raise ValueError("Кадр не является корректным изображением.")
-        result = mesh.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
-        faces = result.multi_face_landmarks or []
+        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+        result = landmarker.detect(mp_image)
+        faces = result.face_landmarks or []
         if len(faces) != 1:
             raise ValueError("В каждом кадре должно быть ровно одно обнаруженное лицо.")
-        return faces[0].landmark
+        return faces[0]
 
     def verify(self, challenge_id: str, admin_id: int, subject_id: int, evidence: list[dict[str, Any]]) -> dict[str, Any]:
         challenge = self._challenges.get(challenge_id)
@@ -107,15 +113,23 @@ class LivenessService:
 
         results: list[dict[str, Any]] = []
         try:
-            with mp.solutions.face_mesh.FaceMesh(
-                static_image_mode=True, max_num_faces=2, refine_landmarks=True,
-                min_detection_confidence=0.65,
-            ) as mesh:
+            if not self.MODEL_PATH.is_file():
+                return {"verified": False, "reason": "liveness_model_missing"}
+            options = vision.FaceLandmarkerOptions(
+                base_options=mp_python.BaseOptions(model_asset_path=str(self.MODEL_PATH)),
+                running_mode=vision.RunningMode.IMAGE,
+                num_faces=2,
+                min_face_detection_confidence=0.65,
+                min_face_presence_confidence=0.65,
+                min_tracking_confidence=0.5,
+            )
+            landmarker = vision.FaceLandmarker.create_from_options(options)
+            try:
                 for action, item in zip(challenge["actions"], evidence):
                     frames = item.get("frames", [])
                     if not isinstance(frames, list) or len(frames) < self.MIN_ACTION_FRAMES or len(frames) > self.MAX_ACTION_FRAMES:
                         return {"verified": False, "reason": "insufficient_frames", "action": action, "received_frames": len(frames), "required_frames": self.MIN_ACTION_FRAMES}
-                    samples = [self._landmarks(frame, mesh) for frame in frames]
+                    samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p, (33, 160, 158, 133, 153, 144)) + self._ear(p, (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
                         # Eight samples across ~1.5s make a short blink less likely to
@@ -143,6 +157,8 @@ class LivenessService:
                             "signal_delta": metric,
                             "results": results,
                         }
+            finally:
+                landmarker.close()
         except (ValueError, RuntimeError) as exc:
             return {"verified": False, "reason": str(exc), "results": results}
         except Exception:
