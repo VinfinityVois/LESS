@@ -21,7 +21,6 @@ export interface User {
   position?: string;
   photo_available?: boolean;
   photo_data_url?: string | null;
-  profile_photo_data_url?: string | null;
   is_active: number;
   face_enrolled?: number;
   created_at: string;

@@ -69,7 +69,6 @@ class DBService:
             self._ensure_column(conn, "users", "position", "TEXT DEFAULT ''")
             self._ensure_column(conn, "users", "face_profile_embedding", "BLOB")
             self._ensure_column(conn, "users", "photo_blob", "BLOB")
-            self._ensure_column(conn, "users", "profile_photo_blob", "BLOB")
             self._ensure_column(conn, "access_logs", "direction", "TEXT")
             self._ensure_column(conn, "access_logs", "door_id", "TEXT")
         logger.info(f"БД инициализирована: {self.db_path}")
@@ -119,7 +118,7 @@ class DBService:
         mime, _, raw = packed.partition(b"\\0")
         if mime.decode("ascii", errors="ignore") not in {"image/jpeg", "image/png", "image/webp"}:
             return None
-        return "data:" + mime.decode("ascii") + ";base64," + base64.b64encode(raw).decode("ascii")
+        return mime.decode("ascii") + ";base64," + base64.b64encode(raw).decode("ascii")
 
     @staticmethod
     def _row_user(row, include_photo=False):
@@ -128,7 +127,7 @@ class DBService:
         user = dict(row)
         user["is_active"] = int(user.get("is_active") or 0)
         user["face_enrolled"] = int(bool(user.get("face_embedding")))
-        user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
+        user["photo_available"] = bool(user.get("photo_blob"))
         if not include_photo:
             user.pop("photo_blob", None)
         return user
@@ -178,7 +177,6 @@ class DBService:
                 return None
             user = self._row_user(row, include_photo=True)
             user["photo_data_url"] = self._photo_data_url(user.pop("photo_blob", None))
-            user["profile_photo_data_url"] = self._photo_data_url(user.pop("profile_photo_blob", None))
             user.pop("face_embedding", None)
             user.pop("face_profile_embedding", None)
             user.pop("pin_hash", None)
@@ -214,16 +212,14 @@ class DBService:
             return cur.rowcount > 0
 
     def save_face_profile(self, user_id: int, front_landmarks: List[List[float]],
-                          profile_landmarks: List[List[float]], front_photo: str,
-                          profile_photo: str) -> None:
+                          profile_landmarks: List[List[float]], front_photo: str) -> None:
         front = self._encrypt(json.dumps(front_landmarks, separators=(",", ":")).encode())
         profile = self._encrypt(json.dumps(profile_landmarks, separators=(",", ":")).encode())
         photo = self._photo_blob(front_photo)
-        profile_photo_blob = self._photo_blob(profile_photo)
         with self._get_conn() as conn:
             conn.execute(
-                "UPDATE users SET face_embedding=?,face_profile_embedding=?,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=?",
-                (front, profile, photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
+                "UPDATE users SET face_embedding=?,face_profile_embedding=?,photo_blob=COALESCE(?,photo_blob),updated_at=? WHERE id=?",
+                (front, profile, photo, datetime.now(timezone.utc).isoformat(), user_id),
             )
 
     def find_similar_faces(self, user_id: int, landmarks: List[List[float]], limit: int = 5) -> List[Dict[str, Any]]:

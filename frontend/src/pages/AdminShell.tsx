@@ -109,6 +109,6 @@ export default function AdminShell() {
         {nav === "diagnostics" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">СИСТЕМНЫЙ КОНТРОЛЬ</span><h1>Состояние оборудования</h1><p>Сводка доступности локальных компонентов СКУД.</p></div></div><div className="diagnostic-grid">{diagnosticItems.map((item) => { const Icon = item.icon; return <div className="diagnostic-card" key={item.label}><div className="diagnostic-card__top"><span className="diagnostic-card__icon"><Icon size={18} /></span><span className={`diagnostic-pill ${item.ok ? "is-ok" : "is-wait"}`}>{item.ok ? "АКТИВЕН" : "ОЖИДАНИЕ"}</span></div><strong>{item.label}</strong><b>{item.value}</b><small>{item.detail}</small></div>; })}</div></section>}
       </main>
     </section>
-    {enrollUser && <FaceEnroll userId={enrollUser.id} userName={enrollUser.name || enrollUser.nfc_uid} onDone={() => setEnrollUser(null)} onCancel={() => setEnrollUser(null)} />}
+    {enrollUser && <FaceEnroll userId={enrollUser.id} userName={enrollUser.name || enrollUser.nfc_uid} onDone={() => { setEnrollUser(null); window.dispatchEvent(new Event("less:users-refresh")); }} onCancel={() => setEnrollUser(null)} />}
   </div>;
 }

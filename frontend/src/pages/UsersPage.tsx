@@ -31,7 +31,12 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
     try { setUsers(await listUsers(true)); setError(""); }
     catch (e: any) { setError(e?.response?.data?.detail || "Не удалось загрузить пользователей из backend."); }
   }, []);
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refreshUsers = () => void load();
+    window.addEventListener("less:users-refresh", refreshUsers);
+    return () => window.removeEventListener("less:users-refresh", refreshUsers);
+  }, [load]);
 
   const filtered = users.filter((user) => {
     const term = search.trim().toLocaleLowerCase("ru");
@@ -92,7 +97,7 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
       for (const row of rows) {
         const uid = String(row.nfc_uid ?? row.uid ?? "").trim();
         if (!uid) continue;
-        await createUser({ name: String(row.name ?? row.full_name ?? ""), position: String(row.position ?? ""), nfc_uid: uid, pin: row.pin ? String(row.pin) : undefined });
+        await createUser({ name: String(row.name ?? row.full_name ?? ""), position: String(row.position ?? ""), nfc_uid: uid, pin: row.pin ? String(row.pin) : undefined, photo_data_url: row.photo_data_url ? String(row.photo_data_url) : undefined });
         imported++;
       }
       await load(); setMessage(`Импортировано записей: ${imported}. Фото и биометрию можно добавить отдельно в карточке сотрудника.`);
