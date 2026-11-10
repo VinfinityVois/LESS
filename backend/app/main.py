@@ -657,7 +657,7 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
         raise HTTPException(status_code=422, detail={"code": "liveness_proof_invalid", "message": "Подтверждение живого присутствия недействительно."})
     try:
         final_frame = body.evidence[-1].frames[-1]
-        observed = face_recognition_service.embedding_from_image(final_frame)
+        observed = await asyncio.to_thread(face_recognition_service.embedding_from_image, final_frame)
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail={"code": "face_engine_unavailable", "message": "Модуль распознавания лица недоступен или модели не установлены."}) from exc
     except ValueError as exc:
