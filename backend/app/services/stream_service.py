@@ -14,23 +14,30 @@ class StreamService:
         self.clients: Set[WebSocket] = set()
         self._streaming_task: asyncio.Task | None = None
         self.is_streaming = False
+        self._stop_requested = False
 
     def request_start(self):
         # Keep one camera capture task for all authenticated WebSocket clients.
+        self._stop_requested = False
         if self._streaming_task and not self._streaming_task.done():
             return
         self._streaming_task = asyncio.create_task(self.start_camera_stream())
 
     async def connect(self, websocket: WebSocket):
+        # Accept first so the client can send its bearer token; do not register
+        # it as a stream consumer until authentication has succeeded.
         await websocket.accept()
+
+    def register(self, websocket: WebSocket):
         self.clients.add(websocket)
-        logger.info(f"Клиент видеопотока подключён. Всего: {len(self.clients)}")
+        logger.info(f"Авторизованный клиент видеопотока подключён. Всего: {len(self.clients)}")
 
     def disconnect(self, websocket: WebSocket):
         self.clients.discard(websocket)
         logger.info(f"Клиент видеопотока отключён. Осталось: {len(self.clients)}")
         if not self.clients and self._streaming_task and not self._streaming_task.done():
             self.is_streaming = False
+            self._stop_requested = True
             self._streaming_task.cancel()
 
     async def broadcast_bytes(self, data: bytes):
@@ -81,11 +88,12 @@ class StreamService:
                 self._streaming_task = None
             # A display may reconnect while the previous task is releasing
             # the device. Start a fresh capture only after that release finished.
-            if self.clients:
+            if self.clients and not self._stop_requested:
                 self.request_start()
 
     def stop_stream(self):
         self.is_streaming = False
+        self._stop_requested = True
         if self._streaming_task and not self._streaming_task.done():
             self._streaming_task.cancel()
 
