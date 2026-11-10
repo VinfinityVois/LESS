@@ -133,6 +133,12 @@ class SerialService:
                 raise ValueError("signature_mismatch")
             if message.get("protocol") != self.PROTOCOL or message.get("type") not in {"ack", "telemetry"}:
                 raise ValueError("invalid_message")
+            expected_id = (getattr(settings, "CONTROLLER_ID", "") or "").strip()
+            if expected_id and message.get("controller_id") != expected_id:
+                raise ValueError("controller_id_mismatch")
+            stamp = datetime.fromisoformat(str(message.get("timestamp", "")).replace("Z", "+00:00"))
+            if stamp.tzinfo is None or abs((datetime.now(timezone.utc) - stamp.astimezone(timezone.utc)).total_seconds()) > 10:
+                raise ValueError("stale_controller_message")
             sequence = int(message.get("sequence", -1))
             with self._condition:
                 if sequence <= self._last_sequence:
@@ -167,11 +173,13 @@ class SerialService:
                     target=str(message.get("door_id", "main")),
                     details={"door_state": message.get("door_state"), "alarm": message.get("alarm"), "sequence": sequence},
                 )
-            else:
+            elif message.get("type") == "ack":
                 audit_journal.append(
-                    "hardware.telemetry",
+                    "hardware.command_acknowledged",
                     target=str(message.get("door_id", "main")),
-                    details={"lock_state": message.get("lock_state"), "door_state": message.get("door_state"), "sequence": sequence},
+                    details={"command_id": message.get("command_id"), "result": message.get("result"),
+                             "lock_state": message.get("lock_state"), "door_state": message.get("door_state"),
+                             "sequence": sequence},
                 )
             return True
         except Exception as exc:
