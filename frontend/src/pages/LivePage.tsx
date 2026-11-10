@@ -4,7 +4,7 @@ import {
   Nfc, Camera, ScanFace, CircleAlert, ArrowUpRight, Activity, MonitorUp,
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
-import { openCameraOnExternalDisplay } from "../services/desktopDisplay";
+import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
 import { getLogs, type AccessLog, type SystemStatus } from "../services/api";
 
 function fmt(iso?: string | null) {
@@ -50,6 +50,9 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
       setDisplayBusy(false);
     }
   };
+  const closeExternal = async () => {
+    try { await closeExternalDisplay(); } finally { localStorage.removeItem("less-external-display-active"); setExternalDisplayActive(false); }
+  };
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
 
@@ -68,7 +71,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
     <div className={`live-grid ${externalDisplayActive ? "live-grid--external" : ""}`}>
       <section className="camera-column">
-        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button></div></div>
+        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
         {!externalDisplayActive ? <div className="camera-frame">
           <VideoFeed />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
