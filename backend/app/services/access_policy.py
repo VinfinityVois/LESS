@@ -17,6 +17,7 @@ from loguru import logger
 import secrets
 import hashlib
 from app.config import settings
+from app.services.db_service import db_service
 
 
 class Direction(str, Enum):
@@ -134,28 +135,10 @@ class AccessPolicyService:
         self._register_failure(self._subject_key(ctx), ctx)
 
     def create_guest_code(self, label: str = "Гость", valid_hours: float = 2.0, max_uses: int = 1, door_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-        raw = secrets.token_urlsafe(8).upper()[:10]
-        code_hash = self._hash_code(raw)
-        expires = datetime.now(timezone.utc) + timedelta(hours=valid_hours)
-        self._guest_codes[code_hash] = {
-            "label": label, "expires_at": expires, "max_uses": max_uses,
-            "uses": 0, "door_ids": door_ids or ["main"], "created_at": datetime.now(timezone.utc),
-        }
-        logger.info(f"Guest code created label={label} expires={expires.isoformat()}")
-        return {"code": raw, "label": label, "expires_at": expires.isoformat(), "max_uses": max_uses, "door_ids": door_ids or ["main"]}
+        return db_service.create_guest_pass(label, valid_hours, max_uses, door_ids or ["main"])
 
     def list_guest_codes(self) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc)
-        out = []
-        for h, meta in self._guest_codes.items():
-            out.append({
-                "code_hash_prefix": h[:8], "label": meta["label"],
-                "expires_at": meta["expires_at"].isoformat(), "max_uses": meta["max_uses"],
-                "uses": meta["uses"],
-                "active": meta["expires_at"] > now and meta["uses"] < meta["max_uses"],
-                "door_ids": meta["door_ids"],
-            })
-        return out
+        return db_service.list_guest_passes()
 
     def _subject_key(self, ctx: AccessContext) -> str:
         if ctx.user_id is not None:
@@ -229,18 +212,22 @@ class AccessPolicyService:
         return AccessResult(AccessDecision.ALLOW, "Дуальный контроль пройден", "ok", details={"first_user_id": pending["user_id"], "second_user_id": ctx.user_id})
 
     def _check_guest_code(self, ctx: AccessContext) -> AccessResult:
-        h = self._hash_code(ctx.guest_code or "")
-        meta = self._guest_codes.get(h)
+        meta = db_service.get_guest_pass_by_code(ctx.guest_code or "")
         if not meta:
             return AccessResult(AccessDecision.DENY, "Неверный гостевой код", "guest_invalid")
-        if meta["expires_at"] <= ctx.now:
+        if meta["status"] == "blocked":
+            return AccessResult(AccessDecision.DENY, "Гостевой пропуск заблокирован", "guest_blocked")
+        if meta["status"] != "active":
+            return AccessResult(AccessDecision.DENY, "Гостевой пропуск закрыт", "guest_closed")
+        if datetime.fromisoformat(meta["expires_at"]) <= ctx.now:
             return AccessResult(AccessDecision.DENY, "Гостевой код истёк", "guest_expired")
         if meta["uses"] >= meta["max_uses"]:
-            return AccessResult(AccessDecision.DENY, "Код уже использован", "guest_exhausted")
+            return AccessResult(AccessDecision.DENY, "Лимит проходов исчерпан", "guest_exhausted")
         if ctx.door_id not in meta["door_ids"]:
             return AccessResult(AccessDecision.DENY, "Код не для этой двери", "guest_wrong_door")
-        meta["uses"] += 1
-        return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"]})
+        if not db_service.consume_guest_pass(meta["id"]):
+            return AccessResult(AccessDecision.DENY, "Пропуск уже использован или отключён", "guest_unavailable")
+        return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"] - 1})
 
     def _on_success(self, ctx: AccessContext, door: DoorPolicy) -> None:
         if ctx.user_id is not None and door.anti_passback:
