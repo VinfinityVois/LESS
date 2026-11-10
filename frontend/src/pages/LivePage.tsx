@@ -32,7 +32,6 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   // Use the backend's actual status values; "running" and "connected" are not "ok".
   const cameraOk = status?.camera === "running";
   const serialOk = status?.serial === "connected";
-  const aiOk = status?.ai === "ok";
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
 
