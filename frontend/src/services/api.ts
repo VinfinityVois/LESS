@@ -1,9 +1,47 @@
 import axios from "axios";
 
 let authToken: string | null = null;
+const authChannel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("less-auth-session") : null;
 
-export function setAuthToken(token: string | null) { authToken = token; }
+authChannel?.addEventListener("message", (event: MessageEvent<{ type?: string; token?: string }>) => {
+  if (event.data?.type === "request-token" && authToken) {
+    authChannel?.postMessage({ type: "shared-token", token: authToken });
+  } else if (event.data?.type === "shared-token" && typeof event.data.token === "string") {
+    authToken = event.data.token;
+  } else if (event.data?.type === "clear-token") {
+    authToken = null;
+  }
+});
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+  authChannel?.postMessage({ type: token ? "shared-token" : "clear-token", token });
+}
 export function getAuthToken() { return authToken; }
+
+export function waitForSharedAuthToken(timeoutMs = 5000): Promise<string | null> {
+  if (authToken) return Promise.resolve(authToken);
+  if (!authChannel) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (token: string | null) => {
+      if (settled) return;
+      settled = true;
+      authChannel.removeEventListener("message", receive);
+      window.clearTimeout(timer);
+      resolve(token);
+    };
+    const receive = (event: MessageEvent<{ type?: string; token?: string }>) => {
+      if (event.data?.type === "shared-token" && typeof event.data.token === "string") {
+        authToken = event.data.token;
+        finish(event.data.token);
+      }
+    };
+    const timer = window.setTimeout(() => finish(null), timeoutMs);
+    authChannel.addEventListener("message", receive);
+    authChannel.postMessage({ type: "request-token" });
+  });
+}
 
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
