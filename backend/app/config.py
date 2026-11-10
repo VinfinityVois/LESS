@@ -23,6 +23,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = ""
+    AUDIT_HMAC_KEY: str = ""
     ARGON2_TIME_COST: int = 3
     ARGON2_MEMORY_COST: int = 65536
 
