@@ -197,8 +197,7 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .display-events{width:min(100%,620px);margin:0 auto;display:flex;flex-direction:column;gap:9px}
 .display-event{display:grid;grid-template-columns:1fr auto;gap:5px 12px;padding:13px;border:1px solid rgba(97,216,208,.18);border-radius:9px;background:rgba(16,28,36,.94)}
 .display-event span{color:#80a1a5;font:10px var(--mono)}
-.display-event strong{grid-column:1/-1;color:#e0eded;font-size:13px}
-.display-event b{color:#d5a16f;font:9px var(--mono);text-align:right}
+.display-event strong{grid-column:1/-1;color:#e0eded;font-size:13px}.display-event b{color:#d5a16f;font:9px var(--mono);text-align:right}
 .display-event b.is-granted{color:#83d8a6}
 .display-event small{grid-column:1/-1;color:#82969b;font-size:10px}
 .display-events-empty{height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#82969b}
@@ -254,3 +253,53 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .camera-display__viewport.is-events .display-events{position:relative;inset:auto;min-height:100%;padding:4px 0 18px;box-sizing:border-box}
 .camera-display__viewport.is-events{overflow-y:auto}
 .camera-display__viewport.is-events .display-video-layer{visibility:hidden}
+
+/* Auxiliary monitor routing: the main screen always shows the complementary workspace. */
+.live-grid--external .verification-column{display:none}
+.live-grid--external{grid-template-columns:minmax(0,1fr)}
+.live-grid--external-video .camera-monitor-block{display:none}
+.live-grid--external-video .camera-column{min-height:0}
+.live-grid--external-video .events-panel{flex:1;min-height:0;max-height:none}
+.live-grid--external-video .events-table{flex:1;max-height:none;overflow-y:auto}
+.live-grid--external-events .events-panel{display:none}
+.live-grid--external-events .camera-column{min-height:0}
+.live-grid--external-events .camera-monitor-block{display:flex;flex:1;min-height:0;flex-direction:column}
+.live-grid--external-events .camera-monitor-block>.camera-frame{flex:1 1 auto;height:auto;min-height:clamp(360px,65vh,900px)}
+.live-grid--external-events .camera-monitor-block>.camera-caption{margin-top:auto}
+@media(max-width:850px){
+  .live-grid--external-events .camera-monitor-block>.camera-frame{min-height:55vh}
+}
+
+/* Consistent LESS controls, native select menus and in-app modal surfaces. */
+.users-form-grid select,
+.guest-create-fields select,
+.admin-account-form select,
+select{
+  appearance:none;
+  -webkit-appearance:none;
+  min-height:36px;
+  padding:9px 34px 9px 11px;
+  border:1px solid var(--line-strong);
+  border-radius:7px;
+  outline:none;
+  color:#dce9e9;
+  background-color:#0b1319;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12' fill='none' stroke='%237faaa9' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m2 4 4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:right 11px center;
+  font:10px var(--display);
+  cursor:pointer;
+  transition:border-color .16s ease,box-shadow .16s ease,background-color .16s ease;
+}
+.users-form-grid select:focus,
+.guest-create-fields select:focus,
+.admin-account-form select:focus,
+select:focus{border-color:rgba(97,216,208,.7);box-shadow:0 0 0 3px rgba(97,216,208,.09)}
+select option{background:#101c24;color:#dce9e9}
+select:disabled{opacity:.55;cursor:not-allowed}
+.face-modal-backdrop{background:rgba(2,7,10,.78);backdrop-filter:blur(16px) saturate(.8)}
+.face-modal{border-color:rgba(97,216,208,.28);background:linear-gradient(155deg,#101d25 0%,#0b141b 75%);box-shadow:0 32px 100px rgba(0,0,0,.66),0 0 0 1px rgba(97,216,208,.035) inset}
+.face-modal-header{background:rgba(255,255,255,.012)}
+.face-modal-header .eyebrow{color:#71cfc6}
+.face-result{padding:30px 24px}
+.users-button:focus-visible,.button-primary:focus-visible,.users-icon-button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
