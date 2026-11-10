@@ -16,6 +16,7 @@ function LoginScreen({ firstRun, onAuthenticated }: {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -28,7 +29,7 @@ function LoginScreen({ firstRun, onAuthenticated }: {
     try {
       const result = firstRun
         ? await bootstrapAdmin({ username, display_name: displayName || username, password })
-        : await loginAdmin({ username, password });
+        : await loginAdmin({ username, password, remember_me: rememberMe });
       onAuthenticated(result.user);
     } catch (e: any) {
       setError(e?.response?.data?.detail || (firstRun ? "Не удалось создать учётную запись." : "Не удалось войти. Проверьте данные или подождите после блокировки."));
@@ -54,9 +55,10 @@ function LoginScreen({ firstRun, onAuthenticated }: {
         <label className="font-mono-label text-outline block mb-1">ПАРОЛЬ</label>
         <input required minLength={firstRun ? 12 : 1} maxLength={256} type="password" autoComplete={firstRun ? "new-password" : "current-password"} className="w-full mb-4 px-3 py-2.5 rounded-lg bg-surface border border-surface-highest text-sm focus:outline-none focus:border-primary" value={password} onChange={(e) => setPassword(e.target.value)} />
         {firstRun && <><label className="font-mono-label text-outline block mb-1">ПОВТОРИТЕ ПАРОЛЬ</label><input required minLength={12} maxLength={256} type="password" autoComplete="new-password" className="w-full mb-4 px-3 py-2.5 rounded-lg bg-surface border border-surface-highest text-sm focus:outline-none focus:border-primary" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} /><p className="text-xs text-outline mb-4">Минимум 12 символов. Пароль хранится только в виде Argon2id-хеша.</p></>}
+        {!firstRun && <label className="flex items-center gap-2 text-sm text-outline mb-4"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} /> Запомнить меня на 1 час</label>}
         {error && <p role="alert" className="text-error text-sm mb-3">{error}</p>}
         <button type="submit" disabled={loading} className="w-full py-2.5 rounded-lg bg-primary-container text-slate-950 font-semibold text-sm hover:brightness-110 disabled:opacity-50">{loading ? "Проверка…" : firstRun ? "Создать защищённую учётную запись" : "Войти в систему"}</button>
-        <p className="mt-4 text-center font-mono-label text-outline">Сессия администратора · 8 часов · блокировка после 5 ошибок</p>
+        <p className="mt-4 text-center font-mono-label text-outline">Сессия: 8 часов · с отметкой «Запомнить» — 1 час · блокировка после 5 ошибок</p>
       </form>
     </div>
   );
