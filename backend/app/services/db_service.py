@@ -6,7 +6,6 @@ Set a unique SECRET_KEY in the backend environment before using real personal da
 from loguru import logger
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
-import sqlite3
 import base64
 import hashlib
 import json
@@ -16,17 +15,17 @@ import secrets
 from datetime import timedelta
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from app.config import settings
+from app.services.database import connect_encrypted, ensure_encrypted_database
 
 
 class DBService:
     def __init__(self):
         self.db_path = settings.DB_PATH
+        ensure_encrypted_database(self.db_path, settings.SECRET_KEY)
         self._init_db()
 
     def _get_conn(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect_encrypted(self.db_path)
 
     def _init_db(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
