@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
 import AdminShell from "./pages/AdminShell";
+import CameraDisplayPage from "./pages/CameraDisplayPage";
 import {
-  bootstrapAdmin, getBootstrapStatus, loginAdmin, logoutAdmin,
-  type AdminAccount,
+  bootstrapAdmin, getBootstrapStatus, getCurrentAdmin, loginAdmin, logoutAdmin,
+  setAuthToken, waitForSharedAuthToken, type AdminAccount,
 } from "./services/api";
 
 function LoginScreen({ firstRun, onAuthenticated }: {
@@ -65,16 +66,29 @@ export default function App() {
   const [user, setUser] = useState<AdminAccount | null>(null);
   const [firstRun, setFirstRun] = useState(false);
   const [ready, setReady] = useState(false);
+  const [displayAuthError, setDisplayAuthError] = useState(false);
+  const displayMode = new URLSearchParams(window.location.search).get("display") === "camera";
 
   useEffect(() => {
     let active = true;
-    getBootstrapStatus()
-      .then((status) => { if (active) { setFirstRun(!status.initialized); setReady(true); } })
-      .catch(() => { if (active) setReady(true); });
+    if (displayMode) {
+      waitForSharedAuthToken()
+        .then((token) => {
+          if (!token) throw new Error("Не получена авторизованная сессия основного окна.");
+          setAuthToken(token);
+          return getCurrentAdmin();
+        })
+        .then((account) => { if (active) { setUser(account); setReady(true); } })
+        .catch(() => { if (active) { setDisplayAuthError(true); setReady(true); } });
+    } else {
+      getBootstrapStatus()
+        .then((status) => { if (active) { setFirstRun(!status.initialized); setReady(true); } })
+        .catch(() => { if (active) setReady(true); });
+    }
     const expired = () => setUser(null);
     window.addEventListener("less:auth-expired", expired);
     return () => { active = false; window.removeEventListener("less:auth-expired", expired); };
-  }, []);
+  }, [displayMode]);
 
   const handleLogout = async () => {
     await logoutAdmin().catch(() => undefined);
@@ -82,6 +96,7 @@ export default function App() {
   };
 
   if (!ready) return <div className="min-h-screen bg-surface flex items-center justify-center text-primary text-sm">Проверка защищённого контура LESS…</div>;
+  if (displayMode) return user ? <CameraDisplayPage /> : <div className="min-h-screen bg-surface flex items-center justify-center text-error text-sm">{displayAuthError ? "Не удалось подключить дополнительный экран. Откройте его из авторизованной основной панели." : "Ожидание авторизации…"}</div>;
   if (!user) return <LoginScreen firstRun={firstRun} onAuthenticated={(account) => { setUser(account); setFirstRun(false); }} />;
   return <AdminShell admin={user} onLogout={() => void handleLogout()} />;
 }
