@@ -28,6 +28,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const [expression, setExpression] = useState("ОЖИДАНИЕ");
   const [cameraError, setCameraError] = useState("");
   const [modelReady, setModelReady] = useState(false);
+  const [cameraAttempt, setCameraAttempt] = useState(0);
   const [shots, setShots] = useState<{front?: Shot; profile?: Shot}>({});
   const [result, setResult] = useState("");
 
@@ -86,7 +87,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       landmarkerRef.current?.close();
       streamRef.current?.getTracks().forEach((track) => track.stop());
     };
-  }, []);
+  }, [cameraAttempt]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -146,6 +147,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
 
   const restartLiveness = async () => {
     setChallengeBusy(false);
+    setCameraError("");
     setChallengeEvidence([]);
     setChallengeIndex(0);
     setChallenge(null);
@@ -224,12 +226,19 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const outline = landmarks?.length ? FACE_OVAL.map((index) => landmarks[index]).filter((p): p is {x:number;y:number;z:number} => p !== undefined).map((p) => `${p.x*1000},${p.y*1000}`).join(" ") : "";
   const shotsAcceptable = (shots.front?.quality ?? 0) >= 55 && (shots.profile?.quality ?? 0) >= 55;
   const reset = () => { void restartLiveness(); };
+  const retryCamera = () => {
+    setCameraError("");
+    setModelReady(false);
+    setFaceFound(false);
+    setStage("liveness");
+    setCameraAttempt((value) => value + 1);
+  };
 
   return <div className="face-modal-backdrop" role="dialog" aria-modal="true" aria-label="Регистрация биометрии">
     <div className="face-modal">
       <header className="face-modal-header"><div><span className="eyebrow">БИОМЕТРИЧЕСКАЯ РЕГИСТРАЦИЯ</span><h2>Сканирование лица</h2><p>{userName} · ID {userId}</p></div><button className="users-icon-button" onClick={onCancel} aria-label="Закрыть"><X size={18}/></button></header>
       {stage === "done" ? <div className="face-result"><span className="face-result-icon"><Check size={25}/></span><h3>Запрос обработан</h3><p>{result}</p><p className="face-disclaimer">Снимки анфас и в профиль, а также геометрические шаблоны сохранены в зашифрованном виде. Процент сходства — только предварительное сравнение формы контрольных точек, а не вероятность совпадения личности.</p><button className="users-button users-button--primary" onClick={onDone}>Готово</button></div> :
-      stage === "error" ? <div className="face-result"><span className="face-result-icon is-error"><CircleAlert size={25}/></span><h3>Не удалось завершить сканирование</h3><p>{cameraError || result}</p><button className="users-button" onClick={() => window.location.reload()}><RotateCcw size={14}/> Повторить / запросить камеру</button><button className="users-button" onClick={onCancel}>Закрыть</button></div> :
+      stage === "error" ? <div className="face-result"><span className="face-result-icon is-error"><CircleAlert size={25}/></span><h3>Не удалось завершить сканирование</h3><p>{cameraError || result}</p><button className="users-button" onClick={() => modelReady ? reset() : retryCamera()}><RotateCcw size={14}/> {modelReady ? "Повторить проверку" : "Повторить подключение камеры"}</button><button className="users-button" onClick={onCancel}>Закрыть</button></div> :
       <><div className="face-stepper"><span className={stage === "front" ? "is-current" : shots.front ? "is-done" : ""}>01 · АНФАС</span><i/><span className={stage === "profile" ? "is-current" : shots.profile ? "is-done" : ""}>02 · ПРОФИЛЬ</span><i/><span className={stage === "review" || stage === "saving" ? "is-current" : ""}>03 · ПРОВЕРКА</span></div>
       {stage === "review" || stage === "saving" ? <div className="face-review"><div><span>АНФАС</span>{shots.front && <img src={shots.front.dataUrl} alt="Снимок анфас"/>}<b>Качество кадра: {shots.front?.quality}%</b></div><div><span>ПРОФИЛЬ</span>{shots.profile && <img src={shots.profile.dataUrl} alt="Снимок профиля"/>}<b>Качество кадра: {shots.profile?.quality}%</b></div><p>{shotsAcceptable ? "Оба кадра прошли базовую проверку освещения и контраста. Это предварительный контроль качества, а не сертификация биометрии или liveness." : "Качество одного из кадров низкое. Переснимите анфас и профиль при более ровном освещении."}</p><button className="users-button" disabled={stage === "saving"} onClick={reset}><RotateCcw size={14}/> Переснять</button><button className="users-button users-button--primary" disabled={!shotsAcceptable || stage === "saving"} onClick={() => void save()}><ScanFace size={15}/> Сохранить биометрию</button></div> :
       stage === "liveness" ? <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}</svg><div className="face-camera-label"><Camera size={13}/> LIVE · SERVER CHALLENGE</div><div className="face-target"><span>ПРОВЕРКА ЖИВОГО ПРИСУТСТВИЯ</span></div></div><div className="liveness-card">{!challenge ? <><span className="eyebrow">СОГЛАСИЕ НА ОБРАБОТКУ БИОМЕТРИИ</span><h3>Подтверждение согласия</h3><p>Перед продолжением убедитесь, что сотрудник уведомлён о сборе и хранении биометрических данных и дал согласие на эту процедуру.</p><label className="liveness-consent"><input type="checkbox" checked={consentConfirmed} onChange={(e)=>setConsentConfirmed(e.target.checked)}/> Я подтверждаю, что субъект перед камерой дал согласие на обработку биометрических данных</label><button className="users-button users-button--primary" disabled={!consentConfirmed || !modelReady || !faceFound || challengeBusy} onClick={()=>void beginLiveness()}>{challengeBusy ? "Подготовка…" : "Подтвердить согласие и начать"}</button></> : <><span className="eyebrow">СЛУЧАЙНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · {challengeIndex+1}/{challenge.actions.length}</span><h3>{challenge.instructions[challenge.actions[challengeIndex]] || "Подготовка проверки…"}</h3><p>После нажатия камера соберёт короткую последовательность кадров. Сервер независимо проверит изменения контрольных точек. Кадры используются только для проверки и не сохраняются.</p><div className="liveness-progress">{challenge.actions.map((action,index)=><i key={action} className={index < challengeIndex ? "is-done" : index === challengeIndex ? "is-current" : ""}/>)}</div><button className="users-button users-button--primary" disabled={!modelReady || !faceFound || challengeBusy} onClick={() => void captureChallengeAction()}>{challengeBusy ? "Анализ последовательности…" : "Выполнить действие"}</button></>}<span className="liveness-status">{!modelReady ? "Загрузка модели…" : !faceFound ? "Расположите лицо перед камерой" : "Лицо обнаружено · можно начинать"}</span><small className="liveness-permission-note">Разрешение камеры сохраняется настройками Windows / WebView. Выберите «Разрешить» для LESS; приложение не может обойти системный запрет.</small></div></> :
