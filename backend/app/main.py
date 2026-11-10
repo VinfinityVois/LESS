@@ -162,6 +162,7 @@ class AdminBootstrapRequest(BaseModel):
 class AdminLoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=256)
+    remember_me: bool = False
 
 
 class AdminCreateRequest(BaseModel):
@@ -204,7 +205,7 @@ async def auth_bootstrap(body: AdminBootstrapRequest):
 
 @app.post("/api/auth/login")
 async def auth_login(body: AdminLoginRequest):
-    result = admin_auth_service.login(body.username, body.password)
+    result = admin_auth_service.login(body.username, body.password, remember_me=body.remember_me)
     if not result:
         raise HTTPException(status_code=401, detail="Неверный логин/пароль или вход временно заблокирован.")
     return result
