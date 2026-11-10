@@ -29,6 +29,7 @@ class SerialService:
         self._condition = threading.Condition()
         self._pending: dict[str, dict[str, Any]] = {}
         self._last_sequence = -1
+        self._last_alarm_signature = None
         controller_configured = bool((getattr(settings, "CONTROLLER_ID", "") or "").strip())
         try:
             self._controller_key()
@@ -181,10 +182,22 @@ class SerialService:
                         "reason": message.get("reason"), "sequence": sequence,
                     }
                 self._condition.notify_all()
-            if message.get("door_state") in {"forced_open", "held_open"} or message.get("alarm"):
-                audit_journal.append("hardware.alarm", target=str(message.get("door_id", "main")),
-                    details={"door_state": message.get("door_state"), "alarm": message.get("alarm"), "sequence": sequence})
-            elif message.get("type") == "ack":
+            alarm_state = message.get("door_state") in {"forced_open", "held_open"} or bool(message.get("alarm"))
+            if alarm_state:
+                alarm_signature = f"{message.get('door_id', 'main')}:{message.get('door_state')}:{message.get('alarm')}"
+                if alarm_signature != self._last_alarm_signature:
+                    audit_journal.append("hardware.alarm", target=str(message.get("door_id", "main")),
+                        details={"door_state": message.get("door_state"), "alarm": message.get("alarm"), "sequence": sequence})
+                    from app.services.db_service import db_service
+                    db_service.add_ai_alert(
+                        "hardware_bypass",
+                        f"Тревога контроллера двери {message.get('door_id', 'main')}: {message.get('alarm') or message.get('door_state')}",
+                        severity="critical",
+                    )
+                    self._last_alarm_signature = alarm_signature
+            else:
+                self._last_alarm_signature = None
+            if message.get("type") == "ack" and not alarm_state:
                 audit_journal.append("hardware.command_acknowledged", target=str(message.get("door_id", "main")),
                     details={"command_id": command_id, "result": message.get("result"),
                              "lock_state": message.get("lock_state"), "door_state": message.get("door_state"),
