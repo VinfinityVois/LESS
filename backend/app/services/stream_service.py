@@ -89,7 +89,7 @@ class StreamService:
                                 model_notice_sent = True
                         else:
                             try:
-                                faces = face_recognition_service.detect_faces(frame)
+                                faces = await asyncio.to_thread(face_recognition_service.detect_faces, frame)
                                 await self.broadcast_json({"type": "face_detection", "available": True, "faces": faces})
                             except Exception as exc:
                                 logger.warning(f"YuNet live detection unavailable: {exc}")
