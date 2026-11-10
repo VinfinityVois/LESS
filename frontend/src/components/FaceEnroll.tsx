@@ -18,7 +18,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const [challenge, setChallenge] = useState<{challenge_id:string;actions:string[];instructions:Record<string,string>} | null>(null);
   const [challengeIndex, setChallengeIndex] = useState(0);
   const [challengeEvidence, setChallengeEvidence] = useState<{action:string;frames:string[]}[]>([]);
-  const [challengeBusy, setChallengeBusy] = useState(false);\n  const [captureProgress, setCaptureProgress] = useState(0);
+  const [challengeBusy, setChallengeBusy] = useState(false);
+  const [captureProgress, setCaptureProgress] = useState(0);
   const [livenessProof, setLivenessProof] = useState("");
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [landmarks, setLandmarks] = useState<Array<{x:number;y:number;z:number}> | null>(null);
@@ -233,7 +234,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (burst < burstCount - 1) await wait(180);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
-      setChallengeEvidence(nextEvidence);\n      setCaptureProgress(0);
+      setChallengeEvidence(nextEvidence);
+      setCaptureProgress(0);
       if (challengeIndex + 1 < challenge.actions.length) {
         setChallengeIndex((value) => value + 1);
       } else {
@@ -249,7 +251,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         : detail?.failed_action
           ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}; оценка: ${detail.diagnostics.blink_score ?? "—"}%.` : ""} Повторите действие: проверка снимает три серии подряд, моргните естественно в каждой серии.`
           : detail?.message || e?.message;
-      setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));\n      setCaptureProgress(0);
+      setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
+      setCaptureProgress(0);
       setStage("error");
     } finally {
       setChallengeBusy(false);
