@@ -18,7 +18,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const [challenge, setChallenge] = useState<{challenge_id:string;actions:string[];instructions:Record<string,string>} | null>(null);
   const [challengeIndex, setChallengeIndex] = useState(0);
   const [challengeEvidence, setChallengeEvidence] = useState<{action:string;frames:string[]}[]>([]);
-  const [challengeBusy, setChallengeBusy] = useState(false);
+  const [challengeBusy, setChallengeBusy] = useState(false);\n  const [captureProgress, setCaptureProgress] = useState(0);
   const [livenessProof, setLivenessProof] = useState("");
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [landmarks, setLandmarks] = useState<Array<{x:number;y:number;z:number}> | null>(null);
@@ -210,24 +210,30 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
       const frames: string[] = [];
-      // Capture a longer sequence so short actions (especially a blink) are
-      // represented by multiple frames rather than missed between samples.
-      await wait(200);
-      for (let i = 0; i < 12; i++) {
-        const video = videoRef.current;
-        if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
-        const frameCanvas = document.createElement("canvas");
-        const scale = Math.min(1, 640 / video.videoWidth);
-        frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-        frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-        const ctx = frameCanvas.getContext("2d");
-        if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
-        ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-        frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
-        await wait(120);
+      // Three short capture bursts (12 frames each) make blink timing less
+      // dependent on one button press. Ask for one natural blink in each burst.
+      const burstCount = 3;
+      const framesPerBurst = 12;
+      await wait(250);
+      for (let burst = 0; burst < burstCount; burst++) {
+        for (let i = 0; i < framesPerBurst; i++) {
+          const video = videoRef.current;
+          if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
+          const frameCanvas = document.createElement("canvas");
+          const scale = Math.min(1, 640 / video.videoWidth);
+          frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          const ctx = frameCanvas.getContext("2d");
+          if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
+          ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
+          frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
+          setCaptureProgress(Math.round((frames.length / (burstCount * framesPerBurst)) * 100));
+          await wait(90);
+        }
+        if (burst < burstCount - 1) await wait(180);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
-      setChallengeEvidence(nextEvidence);
+      setChallengeEvidence(nextEvidence);\n      setCaptureProgress(0);
       if (challengeIndex + 1 < challenge.actions.length) {
         setChallengeIndex((value) => value + 1);
       } else {
@@ -241,9 +247,9 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       const diagnostic = typeof detail === "string"
         ? detail
         : detail?.failed_action
-          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}.` : ""} Повторите моргание естественно: откройте глаза, моргните один раз и снова откройте.`
+          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}; оценка: ${detail.diagnostics.blink_score ?? "—"}%.` : ""} Повторите действие: проверка снимает три серии подряд, моргните естественно в каждой серии.`
           : detail?.message || e?.message;
-      setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
+      setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));\n      setCaptureProgress(0);
       setStage("error");
     } finally {
       setChallengeBusy(false);
@@ -270,7 +276,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       stage === "error" ? <div className="face-result"><span className="face-result-icon is-error"><CircleAlert size={25}/></span><h3>Не удалось завершить сканирование</h3><p>{cameraError || result}</p><button className="users-button" onClick={() => modelReady ? reset() : retryCamera()}><RotateCcw size={14}/> {modelReady ? "Повторить проверку" : "Повторить подключение камеры"}</button><button className="users-button" onClick={onCancel}>Закрыть</button></div> :
       <><div className="face-stepper"><span className={stage === "front" ? "is-current" : shots.front ? "is-done" : ""}>01 · АНФАС</span><i/><span className={stage === "profile" ? "is-current" : shots.profile ? "is-done" : ""}>02 · ПРОФИЛЬ</span><i/><span className={stage === "review" || stage === "saving" ? "is-current" : ""}>03 · ПРОВЕРКА</span></div>
       {stage === "review" || stage === "saving" ? <div className="face-review"><div><span>АНФАС</span>{shots.front && <img src={shots.front.dataUrl} alt="Снимок анфас"/>}<b>Качество кадра: {shots.front?.quality}%</b></div><div><span>ПРОФИЛЬ</span>{shots.profile && <img src={shots.profile.dataUrl} alt="Снимок профиля"/>}<b>Качество кадра: {shots.profile?.quality}%</b></div><p>{shotsAcceptable ? "Оба кадра прошли базовую проверку освещения и контраста. Это предварительный контроль качества, а не сертификация биометрии или liveness." : "Качество одного из кадров низкое. Переснимите анфас и профиль при более ровном освещении."}</p><button className="users-button" disabled={stage === "saving"} onClick={reset}><RotateCcw size={14}/> Переснять</button><button className="users-button users-button--primary" disabled={!shotsAcceptable || stage === "saving"} onClick={() => void save()}><ScanFace size={15}/> Сохранить биометрию</button></div> :
-      stage === "liveness" ? <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}</svg><div className="face-camera-label"><Camera size={13}/> LIVE · SERVER CHALLENGE</div><div className="face-target"><span>ПРОВЕРКА ЖИВОГО ПРИСУТСТВИЯ</span></div></div><div className="liveness-card">{!challenge ? <><span className="eyebrow">СОГЛАСИЕ НА ОБРАБОТКУ БИОМЕТРИИ</span><h3>Подтверждение согласия</h3><p>Перед продолжением убедитесь, что сотрудник уведомлён о сборе и хранении биометрических данных и дал согласие на эту процедуру.</p><label className="liveness-consent"><input type="checkbox" checked={consentConfirmed} onChange={(e)=>setConsentConfirmed(e.target.checked)}/> Я подтверждаю, что субъект перед камерой дал согласие на обработку биометрических данных</label><button className="users-button users-button--primary" disabled={!consentConfirmed || !modelReady || !faceFound || challengeBusy} onClick={()=>void beginLiveness()}>{challengeBusy ? "Подготовка…" : "Подтвердить согласие и начать"}</button></> : <><span className="eyebrow">СЛУЧАЙНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · {challengeIndex+1}/{challenge.actions.length}</span><h3>{challenge.instructions[challenge.actions[challengeIndex]] || "Подготовка проверки…"}</h3><p>После нажатия камера соберёт короткую последовательность кадров. Сервер независимо проверит изменения контрольных точек. Кадры используются только для проверки и не сохраняются.</p><div className="liveness-progress">{challenge.actions.map((action,index)=><i key={action} className={index < challengeIndex ? "is-done" : index === challengeIndex ? "is-current" : ""}/>)}</div><button className="users-button users-button--primary" disabled={!modelReady || !faceFound || challengeBusy} onClick={() => void captureChallengeAction()}>{challengeBusy ? "Анализ последовательности…" : "Выполнить действие"}</button></>}<span className="liveness-status">{!modelReady ? "Загрузка модели…" : !faceFound ? "Расположите лицо перед камерой" : "Лицо обнаружено · можно начинать"}</span><small className="liveness-permission-note">Разрешение камеры сохраняется настройками Windows / WebView. Выберите «Разрешить» для LESS; приложение не может обойти системный запрет.</small></div></> :
+      stage === "liveness" ? <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}</svg><div className="face-camera-label"><Camera size={13}/> LIVE · SERVER CHALLENGE</div><div className="face-target"><span>ПРОВЕРКА ЖИВОГО ПРИСУТСТВИЯ</span></div></div><div className="liveness-card">{!challenge ? <><span className="eyebrow">СОГЛАСИЕ НА ОБРАБОТКУ БИОМЕТРИИ</span><h3>Подтверждение согласия</h3><p>Перед продолжением убедитесь, что сотрудник уведомлён о сборе и хранении биометрических данных и дал согласие на эту процедуру.</p><label className="liveness-consent"><input type="checkbox" checked={consentConfirmed} onChange={(e)=>setConsentConfirmed(e.target.checked)}/> Я подтверждаю, что субъект перед камерой дал согласие на обработку биометрических данных</label><button className="users-button users-button--primary" disabled={!consentConfirmed || !modelReady || !faceFound || challengeBusy} onClick={()=>void beginLiveness()}>{challengeBusy ? "Подготовка…" : "Подтвердить согласие и начать"}</button></> : <><span className="eyebrow">СЛУЧАЙНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · {challengeIndex+1}/{challenge.actions.length}</span><h3>{challenge.instructions[challenge.actions[challengeIndex]] || "Подготовка проверки…"}</h3><p>После нажатия камера снимет три последовательные серии (по 12 кадров). Для моргания моргните естественно по одному разу в каждой серии. Сервер проверит весь временной ряд; кадры не сохраняются.</p><div className="liveness-progress">{challenge.actions.map((action,index)=><i key={action} className={index < challengeIndex ? "is-done" : index === challengeIndex ? "is-current" : ""}/>)}</div>{challengeBusy && <div className="liveness-capture-progress"><div><span>Сбор серии</span><b>{captureProgress}%</b></div><i><span style={{ width: `${captureProgress}%` }} /></i></div>}<button className="users-button users-button--primary" disabled={!modelReady || !faceFound || challengeBusy} onClick={() => void captureChallengeAction()}>{challengeBusy ? `Сбор кадров · ${captureProgress}%` : "Выполнить действие"}</button></>}<span className="liveness-status">{!modelReady ? "Загрузка модели…" : !faceFound ? "Расположите лицо перед камерой" : "Лицо обнаружено · можно начинать"}</span><small className="liveness-permission-note">Разрешение камеры сохраняется настройками Windows / WebView. Выберите «Разрешить» для LESS; приложение не может обойти системный запрет.</small></div></> :
             <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}<path d="M500 80V920 M80 500H920" stroke="#65d9d0" strokeOpacity=".25" strokeDasharray="5 9"/></svg><div className="face-camera-label"><Camera size={13}/> LIVE · LOCAL CAMERA</div><div className="face-target"><span>{stage === "front" ? "СМОТРИТЕ ПРЯМО В КАМЕРУ" : "ПОВЕРНИТЕ ГОЛОВУ ВПОЛБОРОТА"}</span></div></div>
       <div className="face-analysis-grid"><div><span>ОБНАРУЖЕНИЕ</span><b className={faceFound ? "is-good" : ""}>{faceFound ? "ЛИЦО НАЙДЕНО" : "ПОИСК ЛИЦА…"}</b></div><div><span>ПОЗА ГОЛОВЫ</span><b>{faceFound ? `${yaw > 0 ? "+" : ""}${yaw.toFixed(0)}°` : "—"}</b></div><div><span>СООТВЕТСТВИЕ ПОЗЕ</span><b>{faceFound ? `${quality}%` : "—"}</b></div><div><span>МИМИКА</span><b>{expression}</b></div></div>
       <div className="face-guidance">{!modelReady ? "Загружается модель MediaPipe Face Landmarker…" : !faceFound ? "Расположите лицо в центре кадра и обеспечьте равномерное освещение." : !expected ? (stage === "front" ? "Для снимка анфас смотрите прямо в камеру." : "Для профильного кадра поверните голову в сторону примерно на 20–35°.") : "Положение подходит для контрольного снимка."}</div>
