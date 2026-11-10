@@ -175,8 +175,9 @@ class AccessPolicyService:
             lock_seconds=self.lockout_minutes * 60,
         )
         if locked_until:
-            logger.warning(f"LOCKOUT subject={subject} after {failures} failures")
-            self._notify_admin_lockout(subject, failures)
+            subject_fingerprint = hashlib.sha256(subject.encode("utf-8")).hexdigest()[:12]
+            logger.warning(f"LOCKOUT subject_hash={subject_fingerprint} after {failures} failures")
+            self._notify_admin_lockout(subject_fingerprint, failures)
 
     def _notify_admin_lockout(self, subject: str, count: int) -> None:
         logger.error(f"[ADMIN ALERT] Lockout: {subject}, failed={count}")
