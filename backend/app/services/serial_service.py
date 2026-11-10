@@ -86,7 +86,7 @@ class SerialService:
             "nonce": base64.b64encode(nonce).decode("ascii"),
             "ciphertext": base64.b64encode(ciphertext).decode("ascii"),
         }
-        return self.PROTOCOL + " " + json.dumps(envelope, separators=(",", ":")) + "\\n"
+        return self.PROTOCOL + " " + json.dumps(envelope, separators=(",", ":")) + "\n"
 
     def _decrypt_frame(self, line: str) -> dict[str, Any]:
         envelope = json.loads(line[len(self.PROTOCOL) + 1:])
