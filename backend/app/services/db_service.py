@@ -261,7 +261,7 @@ class DBService:
         return hashlib.sha256(code.strip().upper().encode()).hexdigest()
 
     def create_guest_pass(self, label: str, valid_hours: float, max_uses: int, door_ids: List[str]) -> Dict[str, Any]:
-        code = secrets.token_urlsafe(8).upper()[:10]
+        code = secrets.token_urlsafe(16).upper()[:20]
         now = datetime.now(timezone.utc)
         expires = now + timedelta(hours=valid_hours)
         with self._get_conn() as conn:
