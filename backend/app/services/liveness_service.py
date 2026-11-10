@@ -16,7 +16,7 @@ import numpy as np
 
 
 class LivenessService:
-    TTL_SECONDS = 120
+    TTL_SECONDS = 600
     PROOF_TTL_SECONDS = 600
     MAX_FRAME_BYTES = 1_500_000
     ACTIONS = ("blink", "turn_head", "open_mouth")
