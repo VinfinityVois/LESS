@@ -65,6 +65,15 @@ class DBService:
                     created_at TEXT NOT NULL,
                     is_resolved INTEGER DEFAULT 0
                 );
+                CREATE TABLE IF NOT EXISTS biometric_consents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER NOT NULL,
+                    admin_id INTEGER NOT NULL,
+                    purpose TEXT NOT NULL,
+                    consent_at TEXT NOT NULL,
+                    revoked_at TEXT,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                );
             """)
             self._ensure_column(conn, "users", "position", "TEXT DEFAULT ''")
             self._ensure_column(conn, "users", "face_profile_embedding", "BLOB")
@@ -215,6 +224,22 @@ class DBService:
                 cur = conn.execute("UPDATE users SET is_active=0,updated_at=? WHERE id=?",
                                    (datetime.now(timezone.utc).isoformat(), user_id))
             return cur.rowcount > 0
+
+    def record_biometric_consent(self, user_id: int, admin_id: int, purpose: str = "Регистрация биометрического шаблона") -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            conn.execute(
+                "INSERT INTO biometric_consents(user_id,admin_id,purpose,consent_at) VALUES(?,?,?,?)",
+                (user_id, admin_id, purpose, now),
+            )
+
+    def has_biometric_consent(self, user_id: int) -> bool:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM biometric_consents WHERE user_id=? AND revoked_at IS NULL ORDER BY id DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            return row is not None
 
     def save_face_profile(self, user_id: int, front_landmarks: List[List[float]],
                           profile_landmarks: List[List[float]], front_photo: str,

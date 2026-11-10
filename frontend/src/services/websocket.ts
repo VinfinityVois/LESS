@@ -1,3 +1,5 @@
+import { getAuthToken, setAuthToken } from "./api";
+
 type MessageHandler = (data: any) => void;
 type BinaryHandler = (data: Blob) => void;
 
@@ -13,6 +15,7 @@ export class LessWebSocket {
   }
 
   connect() {
+    if (!getAuthToken()) return;
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
@@ -22,7 +25,9 @@ export class LessWebSocket {
 
     this.ws.onopen = () => {
       console.log("[WS] connected");
-      this.send("start_stream");
+      const token = getAuthToken();
+      if (!token) { this.ws?.close(4401, "Unauthorized"); return; }
+      this.send(JSON.stringify({ type: "auth", token }));
     };
 
     this.ws.onmessage = (event) => {
@@ -31,6 +36,10 @@ export class LessWebSocket {
       } else {
         try {
           const json = JSON.parse(event.data);
+          if (json.type === "auth_ok") {
+            this.send("start_stream");
+            return;
+          }
           this.onJson?.(json);
         } catch {
           // ignore
@@ -38,8 +47,13 @@ export class LessWebSocket {
       }
     };
 
-    this.ws.onclose = () => {
-      console.log("[WS] closed, reconnect in 2s");
+    this.ws.onclose = (event) => {
+      console.log("[WS] closed");
+      if (event.code === 4401) {
+        setAuthToken(null);
+        window.dispatchEvent(new Event("less:auth-expired"));
+        return;
+      }
       this.scheduleReconnect();
     };
 

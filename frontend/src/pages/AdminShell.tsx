@@ -11,9 +11,10 @@ import { createGuestCode } from "../services/api";
 import LivePage from "./LivePage";
 import UsersPage from "./UsersPage";
 import LogsPage from "./LogsPage";
+import AdminAccountsPage from "./AdminAccountsPage";
 import FaceEnroll from "../components/FaceEnroll";
 
-type NavId = "live" | "logs" | "incidents" | "users" | "diagnostics" | "guests";
+type NavId = "live" | "logs" | "incidents" | "users" | "diagnostics" | "guests" | "admins";
 const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "live", label: "Мониторинг", icon: Video, group: "ОПЕРАТИВНЫЙ ПОСТ" },
   { id: "logs", label: "Журнал событий", icon: History, group: "ОПЕРАТИВНЫЙ ПОСТ" },
@@ -21,10 +22,11 @@ const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "users", label: "Сотрудники и доступ", icon: Users, group: "УПРАВЛЕНИЕ" },
   { id: "guests", label: "Гостевые пропуска", icon: BadgeCheck, group: "УПРАВЛЕНИЕ" },
   { id: "diagnostics", label: "Оборудование", icon: SlidersHorizontal, group: "СИСТЕМА" },
+  { id: "admins", label: "Администраторы", icon: ShieldCheck, group: "АДМИНИСТРИРОВАНИЕ" },
 ];
 const pageTitles: Record<NavId, string> = {
   live: "Пост охраны", logs: "Журнал событий", incidents: "Центр инцидентов",
-  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска",
+  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли",
 };
 function DeviceState({ icon: Icon, label, value, ok }: { icon: typeof Camera; label: string; value: string; ok: boolean }) {
   return <div className="device-state"><span className={`device-state__icon ${ok ? "is-ok" : "is-off"}`}><Icon size={14} /></span><span className="device-state__label">{label}</span><span className={`device-state__value ${ok ? "is-ok" : "is-off"}`}>{value}</span></div>;
@@ -62,7 +64,8 @@ export default function AdminShell() {
   const serialOk = status?.serial === "connected";
   const dbOk = status?.db === "ok";
   const aiOk = status?.ai === "ok";
-  const grouped = NAV.reduce<Record<string, typeof NAV>>((acc, item) => {
+  const visibleNav = NAV.filter((item) => item.id !== "admins" || admin.role === "superadmin");
+  const grouped = visibleNav.reduce<Record<string, typeof NAV>>((acc, item) => {
     (acc[item.group] ||= []).push(item);
     return acc;
   }, {});
@@ -104,6 +107,7 @@ export default function AdminShell() {
         {nav === "live" && <LivePage status={status} />}
         {nav === "users" && <UsersPage onEnroll={setEnrollUser} />}
         {nav === "logs" && <LogsPage />}
+        {nav === "admins" && admin.role === "superadmin" && <AdminAccountsPage currentAdminId={admin.id} />}
         {nav === "guests" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">УПРАВЛЕНИЕ ДОСТУПОМ</span><h1>Гостевые пропуска</h1><p>Временные коды доступа с ограничением по сроку и числу проходов.</p></div></div><div className="surface-panel guest-panel"><div className="panel-icon"><BadgeCheck size={21} /></div><div><h2>Создать временный пропуск</h2><p>Код будет действовать 2 часа и позволит выполнить один проход.</p></div><button className="button-primary" onClick={() => void makeGuestCode()} disabled={guestBusy}>{guestBusy ? "Создание…" : "Сформировать код"}<ChevronRight size={15} /></button>{guestMsg && <div className={`inline-result ${guestMsg.startsWith("Не удалось") ? "is-error" : ""}`} role="status">{guestMsg}</div>}</div></section>}
         {nav === "incidents" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">МОНИТОРИНГ БЕЗОПАСНОСТИ</span><h1>Центр инцидентов</h1><p>Подозрительные события, отказы оборудования и сигналы аналитики.</p></div><span className="soft-status">НЕТ АКТИВНЫХ ДАННЫХ</span></div><div className="empty-state"><div className="empty-state__icon"><AlertTriangle size={23} /></div><strong>Лента инцидентов не подключена</strong><span>Сейчас backend предоставляет журнал доступа и статус компонентов. Отдельный поток инцидентов ещё не реализован.</span></div></section>}
         {nav === "diagnostics" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">СИСТЕМНЫЙ КОНТРОЛЬ</span><h1>Состояние оборудования</h1><p>Сводка доступности локальных компонентов СКУД.</p></div></div><div className="diagnostic-grid">{diagnosticItems.map((item) => { const Icon = item.icon; return <div className="diagnostic-card" key={item.label}><div className="diagnostic-card__top"><span className="diagnostic-card__icon"><Icon size={18} /></span><span className={`diagnostic-pill ${item.ok ? "is-ok" : "is-wait"}`}>{item.ok ? "АКТИВЕН" : "ОЖИДАНИЕ"}</span></div><strong>{item.label}</strong><b>{item.value}</b><small>{item.detail}</small></div>; })}</div></section>}

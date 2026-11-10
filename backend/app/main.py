@@ -4,7 +4,9 @@ LESS Backend — точка входа
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+import json
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
@@ -15,6 +17,8 @@ from app.services.camera_service import camera_service
 from app.services.serial_service import serial_service
 from app.services.db_service import db_service
 from app.services.auth_service import auth_service
+from app.services.admin_auth_service import admin_auth_service
+from app.services.liveness_service import liveness_service
 from app.services.ai_analyzer import ai_analyzer
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
@@ -56,6 +60,40 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+PUBLIC_AUTH_PATHS = {"/api/status", "/api/auth/bootstrap-status", "/api/auth/bootstrap", "/api/auth/login"}
+
+@app.middleware("http")
+async def protect_control_plane(request: Request, call_next):
+    path = request.url.path
+    if path.startswith("/api/") and path not in PUBLIC_AUTH_PATHS and request.method != "OPTIONS":
+        header = request.headers.get("Authorization", "")
+        token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+        actor = admin_auth_service.authenticate(token)
+        if not actor:
+            return JSONResponse(status_code=401, content={"detail": "Требуется авторизация администратора."})
+        request.state.admin = actor
+        if actor["role"] == "security" and (
+            (path.startswith("/api/users") and request.method in {"POST", "PATCH", "DELETE"})
+            or path.startswith("/api/biometrics")
+            or path.startswith("/api/camera")
+            or path.startswith("/api/serial")
+            or path.startswith("/api/ai")
+            or path == "/api/access/check"
+        ):
+            return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для этой операции."})
+        if path.startswith("/api/biometrics") and actor["role"] == "security":
+            return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для биометрической регистрации."})
+        if path.startswith("/api/auth/admins") and actor["role"] != "superadmin":
+            return JSONResponse(status_code=403, content={"detail": "Управлять администраторами может только суперадминистратор."})
+        if path.startswith("/api/access/guest-codes") and request.method == "POST" and actor["role"] == "security":
+            return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для выдачи гостевых пропусков."})
+    response = await call_next(request)
+    actor = getattr(request.state, "admin", None)
+    if actor and request.method in {"POST", "PATCH", "DELETE"} and response.status_code < 400:
+        admin_auth_service.audit(actor["id"], f"api.{request.method.lower()}", path, f"status={response.status_code}")
+    return response
 
 
 @app.get("/")
@@ -113,6 +151,130 @@ async def serial_connect(port: Optional[str] = None):
     return {"success": ok, "port": port or settings.SERIAL_PORT}
 
 
+
+
+class AdminBootstrapRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=12, max_length=256)
+
+
+class AdminLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+class AdminCreateRequest(BaseModel):
+    username: str = Field(min_length=3, max_length=64)
+    display_name: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=12, max_length=256)
+    role: str = Field(default="admin", pattern="^(admin|security)$")
+
+
+class AdminActiveRequest(BaseModel):
+    is_active: bool
+
+
+class LivenessChallengeRequest(BaseModel):
+    user_id: int
+    consent_confirmed: bool = False
+
+
+class LivenessVerifyRequest(BaseModel):
+    user_id: int
+    challenge_id: str = Field(min_length=20, max_length=128)
+    evidence: list[dict]
+
+
+@app.get("/api/auth/bootstrap-status")
+async def auth_bootstrap_status():
+    return admin_auth_service.bootstrap_status()
+
+
+@app.post("/api/auth/bootstrap")
+async def auth_bootstrap(body: AdminBootstrapRequest):
+    try:
+        admin_auth_service.bootstrap(body.username, body.password, body.display_name)
+    except PermissionError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return admin_auth_service.login(body.username, body.password)
+
+
+@app.post("/api/auth/login")
+async def auth_login(body: AdminLoginRequest):
+    result = admin_auth_service.login(body.username, body.password)
+    if not result:
+        raise HTTPException(status_code=401, detail="Неверный логин/пароль или вход временно заблокирован.")
+    return result
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request):
+    return request.state.admin
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request):
+    header = request.headers.get("Authorization", "")
+    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
+    admin_auth_service.logout(token)
+    return {"success": True}
+
+
+@app.get("/api/auth/admins")
+async def auth_list_admins():
+    return {"admins": admin_auth_service.list_admins()}
+
+
+@app.post("/api/auth/admins")
+async def auth_create_admin(body: AdminCreateRequest, request: Request):
+    try:
+        return admin_auth_service.create_managed_admin(body.username, body.password, body.display_name, body.role, request.state.admin)
+    except Exception as exc:
+        raise HTTPException(status_code=409, detail="Не удалось создать учётную запись. Проверьте уникальность логина.") from exc
+
+
+@app.patch("/api/auth/admins/{admin_id}")
+async def auth_set_admin_active(admin_id: int, body: AdminActiveRequest, request: Request):
+    if admin_id == request.state.admin["id"] and not body.is_active:
+        raise HTTPException(status_code=400, detail="Нельзя отключить собственную активную учётную запись.")
+    if not admin_auth_service.set_admin_active(admin_id, body.is_active, request.state.admin):
+        raise HTTPException(status_code=404, detail="Администратор не найден.")
+    return {"success": True}
+
+
+@app.get("/api/auth/audit")
+async def auth_audit(limit: int = Query(100, ge=1, le=500)):
+    return {"events": admin_auth_service.get_audit(limit)}
+
+
+@app.post("/api/biometrics/liveness/challenge")
+async def create_liveness_challenge(body: LivenessChallengeRequest, request: Request):
+    require_biometric_encryption_key()
+    if not db_service.get_user(body.user_id, include_logs=False):
+        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    if not body.consent_confirmed:
+        raise HTTPException(status_code=400, detail="Перед регистрацией необходимо подтвердить согласие субъекта на обработку биометрических данных.")
+    db_service.record_biometric_consent(body.user_id, request.state.admin["id"])
+    admin_auth_service.audit(request.state.admin["id"], "biometric.consent_recorded", str(body.user_id), "Оператор подтвердил наличие согласия субъекта")
+    return liveness_service.create(request.state.admin["id"], body.user_id)
+
+
+@app.post("/api/biometrics/liveness/verify")
+async def verify_liveness(body: LivenessVerifyRequest, request: Request):
+    result = liveness_service.verify(body.challenge_id, request.state.admin["id"], body.user_id, body.evidence)
+    if not result.get("verified"):
+        raise HTTPException(status_code=422, detail=result.get("reason", "Проверка присутствия не пройдена."))
+    return result
+
+
+def require_biometric_encryption_key():
+    if settings.SECRET_KEY == "change-me-in-production-use-openssl-rand-hex-32":
+        raise HTTPException(status_code=503, detail="Перед сохранением фото и биометрии задайте уникальный SECRET_KEY в backend/.env.")
+
+
 class UserCreateRequest(BaseModel):
     nfc_uid: str = Field(min_length=1, max_length=128)
     name: str = Field(default="", max_length=200)
@@ -136,6 +298,7 @@ class FaceEnrollRequest(BaseModel):
     profile_landmarks: list[list[float]]
     front_photo: str
     profile_photo: str
+    liveness_proof: str = Field(min_length=20, max_length=128)
 
 
 @app.get("/api/users")
@@ -145,6 +308,8 @@ async def list_users(include_inactive: bool = Query(True)):
 
 @app.post("/api/users")
 async def create_user(body: UserCreateRequest):
+    if body.photo_data_url:
+        require_biometric_encryption_key()
     from app.services.crypto_service import crypto_service
     pin_hash = crypto_service.hash_secret(body.pin) if body.pin else None
     try:
@@ -170,6 +335,8 @@ async def get_user(user_id: int):
 async def update_user(user_id: int, body: UserUpdateRequest):
     from app.services.crypto_service import crypto_service
     changes = body.model_dump(exclude_unset=True)
+    if changes.get("photo_data_url"):
+        require_biometric_encryption_key()
     if "pin" in changes:
         pin = changes.pop("pin")
         if pin:
@@ -191,10 +358,15 @@ async def remove_user(user_id: int, hard: bool = Query(False)):
 
 
 @app.post("/api/users/{user_id}/face-enroll")
-async def enroll_face(user_id: int, body: FaceEnrollRequest):
+async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
     user = db_service.get_user(user_id, include_logs=False)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    require_biometric_encryption_key()
+    if not db_service.has_biometric_consent(user_id):
+        raise HTTPException(status_code=403, detail="Для регистрации биометрии требуется зафиксированное согласие субъекта.")
+    if not liveness_service.consume_proof(body.liveness_proof, request.state.admin["id"], user_id):
+        raise HTTPException(status_code=422, detail="Нет действительного подтверждения проверки присутствия. Пройдите liveness challenge заново.")
     if len(body.front_landmarks) < 300 or len(body.profile_landmarks) < 300:
         raise HTTPException(status_code=422, detail="Недостаточно контрольных точек лица.")
     if len(body.front_photo) > 8_000_000 or len(body.profile_photo) > 8_000_000:
@@ -304,6 +476,19 @@ async def list_guest_codes():
 async def websocket_endpoint(websocket: WebSocket):
     await stream_service.connect(websocket)
     try:
+        try:
+            handshake = json.loads(await websocket.receive_text())
+        except (json.JSONDecodeError, TypeError):
+            await websocket.close(code=4401, reason="Authentication required")
+            stream_service.disconnect(websocket)
+            return
+        token = handshake.get("token", "") if handshake.get("type") == "auth" else ""
+        actor = admin_auth_service.authenticate(token)
+        if not actor:
+            await websocket.close(code=4401, reason="Unauthorized")
+            stream_service.disconnect(websocket)
+            return
+        await websocket.send_json({"type": "auth_ok", "user": actor})
         while True:
             data = await websocket.receive_text()
             if data == "start_stream":
