@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import asyncio
 import json
 import hashlib
+import string
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -291,7 +292,12 @@ async def verify_liveness(body: LivenessVerifyRequest, request: Request):
 
 def require_biometric_encryption_key():
     key = (settings.SECRET_KEY or "").strip()
-    placeholder = not key or len(key) < 64 or any(
+    valid_hex_key = (
+        len(key) == 64
+        and all(character in string.hexdigits for character in key)
+        and len(set(key.lower())) >= 12
+    )
+    placeholder = not valid_hex_key or any(
         marker in key.lower()
         for marker in ("change-me", "replace-with", "example", "placeholder", "your-secret")
     )
