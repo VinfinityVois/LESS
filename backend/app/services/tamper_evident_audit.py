@@ -63,6 +63,9 @@ class TamperEvidentAudit:
 
     def _verify_and_load(self) -> None:
         if not self.path.exists():
+            if self._sequence:
+                self._healthy = False
+                raise RuntimeError("Файл защищённого аудита был удалён после запуска.")
             return
         previous = self.GENESIS
         sequence = 0
@@ -87,6 +90,9 @@ class TamperEvidentAudit:
 
     def append(self, event: str, actor_id: int | None = None, target: str = "", details: Any = None) -> dict[str, Any]:
         with self._lock:
+            if self._key and self._healthy:
+                # Detect external truncation or edits before extending the chain.
+                self._verify_and_load()
             if not self._healthy:
                 raise RuntimeError(self._configuration_error or "Защищённый аудит недоступен: обнаружено повреждение цепочки.")
             body = {
