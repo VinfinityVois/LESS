@@ -17,7 +17,7 @@ Pillow>=10.4.0
 
 # Database — bundled SQLCipher 4 wheels for Windows, macOS and Linux
 SQLAlchemy>=2.0.36
-sqlcipher3-wheels==0.5.7
+sqlcipher3==0.6.5
 
 # Cryptography
 argon2-cffi>=23.1.0
