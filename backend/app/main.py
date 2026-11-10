@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import settings
 from app.services.camera_service import camera_service
@@ -177,14 +177,26 @@ class AdminActiveRequest(BaseModel):
 
 
 class LivenessChallengeRequest(BaseModel):
-    user_id: int
+    user_id: int = Field(gt=0)
     consent_confirmed: bool = False
 
 
+class LivenessActionEvidence(BaseModel):
+    action: str = Field(pattern="^(blink|turn_head|open_mouth)$")
+    frames: list[str] = Field(min_length=4, max_length=8)
+
+    @field_validator("frames")
+    @classmethod
+    def validate_frame_sizes(cls, frames: list[str]) -> list[str]:
+        if any(not isinstance(frame, str) or len(frame) > 2_100_000 for frame in frames):
+            raise ValueError("Кадр проверки превышает допустимый размер.")
+        return frames
+
+
 class LivenessVerifyRequest(BaseModel):
-    user_id: int
+    user_id: int = Field(gt=0)
     challenge_id: str = Field(min_length=20, max_length=128)
-    evidence: list[dict]
+    evidence: list[LivenessActionEvidence] = Field(min_length=2, max_length=2)
 
 
 @app.get("/api/auth/bootstrap-status")
@@ -254,8 +266,9 @@ async def auth_audit(limit: int = Query(100, ge=1, le=500)):
 @app.post("/api/biometrics/liveness/challenge")
 async def create_liveness_challenge(body: LivenessChallengeRequest, request: Request):
     require_biometric_encryption_key()
-    if not db_service.get_user(body.user_id, include_logs=False):
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    subject = db_service.get_user(body.user_id, include_logs=False)
+    if not subject or not subject.get("is_active") or subject.get("deleted_at"):
+        raise HTTPException(status_code=404, detail="Сотрудник не найден, удалён или отключён. Сначала создайте активную карточку сотрудника.")
     if not body.consent_confirmed:
         raise HTTPException(status_code=400, detail="Перед регистрацией необходимо подтвердить согласие субъекта на обработку биометрических данных.")
     db_service.record_biometric_consent(body.user_id, request.state.admin["id"])
@@ -265,7 +278,7 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
 
 @app.post("/api/biometrics/liveness/verify")
 async def verify_liveness(body: LivenessVerifyRequest, request: Request):
-    result = liveness_service.verify(body.challenge_id, request.state.admin["id"], body.user_id, body.evidence)
+    result = liveness_service.verify(body.challenge_id, request.state.admin["id"], body.user_id, [item.model_dump() for item in body.evidence])
     if not result.get("verified"):
         raise HTTPException(status_code=422, detail=result.get("reason", "Проверка присутствия не пройдена."))
     return result
@@ -295,7 +308,7 @@ class UserCreateRequest(BaseModel):
     position: str = Field(default="", max_length=200)
     pin: Optional[str] = Field(default=None, max_length=64)
     is_active: bool = True
-    photo_data_url: Optional[str] = None
+    photo_data_url: Optional[str] = Field(default=None, max_length=7_000_000)
 
 
 class UserUpdateRequest(BaseModel):
@@ -308,10 +321,10 @@ class UserUpdateRequest(BaseModel):
 
 
 class FaceEnrollRequest(BaseModel):
-    front_landmarks: list[list[float]]
-    profile_landmarks: list[list[float]]
-    front_photo: str
-    profile_photo: str
+    front_landmarks: list[tuple[float, float, float]] = Field(min_length=300, max_length=478)
+    profile_landmarks: list[tuple[float, float, float]] = Field(min_length=300, max_length=478)
+    front_photo: str = Field(min_length=32, max_length=8_000_000)
+    profile_photo: str = Field(min_length=32, max_length=8_000_000)
     liveness_proof: str = Field(min_length=20, max_length=128)
 
 
@@ -374,8 +387,8 @@ async def remove_user(user_id: int, hard: bool = Query(False)):
 @app.post("/api/users/{user_id}/face-enroll")
 async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
     user = db_service.get_user(user_id, include_logs=False)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    if not user or not user.get("is_active") or user.get("deleted_at"):
+        raise HTTPException(status_code=404, detail="Сотрудник не найден, удалён или отключён. Регистрация биометрии невозможна.")
     require_biometric_encryption_key()
     if not db_service.has_biometric_consent(user_id):
         raise HTTPException(status_code=403, detail="Для регистрации биометрии требуется зафиксированное согласие субъекта.")
@@ -403,12 +416,12 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
 
 
 class AccessCheckRequest(BaseModel):
-    nfc_uid: Optional[str] = None
-    user_id: Optional[int] = None
-    door_id: str = "main"
-    direction: str = "in"
-    guest_code: Optional[str] = None
-    factor: str = "nfc"
+    nfc_uid: Optional[str] = Field(default=None, max_length=128)
+    user_id: Optional[int] = Field(default=None, gt=0)
+    door_id: str = Field(default="main", min_length=1, max_length=64, pattern="^[A-Za-z0-9_.-]+$")
+    direction: str = Field(default="in", pattern="^(in|out)$")
+    guest_code: Optional[str] = Field(default=None, max_length=128)
+    factor: str = Field(default="nfc", min_length=1, max_length=32)
 
 
 class GuestCodeCreate(BaseModel):
@@ -420,9 +433,39 @@ class GuestCodeCreate(BaseModel):
 
 @app.post("/api/access/check")
 async def access_check(body: AccessCheckRequest):
-    direction = Direction.IN if body.direction.lower() != "out" else Direction.OUT
-    resolved_user = db_service.get_user_by_nfc(body.nfc_uid) if body.nfc_uid else None
-    resolved_user_id = body.user_id or (resolved_user["id"] if resolved_user else None)
+    direction = Direction.IN if body.direction == "in" else Direction.OUT
+    resolved_user = None
+    identity_error = None
+    if body.user_id is not None:
+        supplied_user = db_service.get_user(body.user_id, include_logs=False)
+        if not supplied_user or not supplied_user.get("is_active") or supplied_user.get("deleted_at"):
+            identity_error = AccessResult(
+                AccessDecision.DENY,
+                "Сотрудник не найден, удалён или отключён. Доступ запрещён.",
+                "user_not_found",
+            )
+        elif body.nfc_uid:
+            resolved_user = db_service.get_user_by_nfc(body.nfc_uid)
+            if not resolved_user or resolved_user["id"] != body.user_id:
+                identity_error = AccessResult(
+                    AccessDecision.DENY,
+                    "UID карты не соответствует указанному сотруднику. Доступ запрещён.",
+                    "identity_mismatch",
+                )
+                resolved_user = None
+            else:
+                resolved_user = supplied_user
+        else:
+            resolved_user = supplied_user
+    elif body.nfc_uid and not body.guest_code:
+        resolved_user = db_service.get_user_by_nfc(body.nfc_uid)
+        if not resolved_user:
+            identity_error = AccessResult(
+                AccessDecision.DENY,
+                "Карта не привязана к действующему сотруднику. Доступ запрещён.",
+                "user_not_found",
+            )
+    resolved_user_id = resolved_user["id"] if resolved_user else None
     ctx = AccessContext(
         nfc_uid=body.nfc_uid,
         user_id=resolved_user_id,
@@ -431,7 +474,9 @@ async def access_check(body: AccessCheckRequest):
         guest_code=body.guest_code,
         factor=body.factor,
     )
-    if body.factor.lower() in {"face", "biometric", "face_biometric"}:
+    if identity_error:
+        result = identity_error
+    elif body.factor.lower() in {"face", "biometric", "face_biometric"}:
         result = AccessResult(
             AccessDecision.DENY,
             "Runtime-распознавание лица не подключено к проверке прохода.",
