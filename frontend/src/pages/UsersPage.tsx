@@ -84,9 +84,9 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     finally { setBusy(false); }
   };
   const remove = async (user: UserType) => {
-    if (!window.confirm(`Удалить пользователя «${user.name || user.nfc_uid}»? Запись может быть архивирована backend согласно его политике хранения.`)) return;
+    if (!window.confirm(`Убрать «${user.name || user.nfc_uid}» из действующего списка? Доступ будет отозван, а история проходов сохранится в отчётах.`)) return;
     setBusy(true);
-    try { await deleteUser(user.id); setSelected(null); await load(); }
+    try { await deleteUser(user.id); setSelected(null); await load(); setMessage("Сотрудник убран из действующего списка. История проходов сохранена в отчётах."); }
     catch (e: any) { setError(e?.response?.data?.detail || "Не удалось удалить пользователя."); }
     finally { setBusy(false); }
   };
