@@ -79,9 +79,6 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     return () => window.clearInterval(timer);
   }, [load]);
 
-  // Use the backend's actual status values; "running" and "connected" are not "ok".
-  const cameraOk = status?.camera === "running";
-  const serialOk = status?.serial === "connected";
   const openExternalDisplay = async (mode: "video" | "events") => {
     setDisplayBusy(true);
     setDisplayMessage("");
