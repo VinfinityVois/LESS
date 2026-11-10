@@ -176,6 +176,14 @@ class LivenessService:
                             "reason": "challenge_action_failed",
                             "failed_action": action,
                             "signal_delta": metric,
+                            "diagnostics": ({
+                                "ear_min": round(trough, 4),
+                                "ear_max": round(peak, 4),
+                                "closed_to_open_ratio": round(closed_ratio, 4),
+                                "opened_before": opened_before,
+                                "reopened_after": reopened_after,
+                                "frame_count": len(ears),
+                            } if action == "blink" else {"frame_count": len(samples)}),
                             "results": results,
                         }
             finally:
