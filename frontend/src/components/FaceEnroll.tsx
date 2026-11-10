@@ -39,7 +39,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       try {
         // Release the shared OpenCV/WebSocket camera before WebView requests the same device.
         cameraChannel.postMessage({ type: "pause-camera" });
-        await new Promise((resolve) => window.setTimeout(resolve, 650));
+        await new Promise((resolve) => window.setTimeout(resolve, 1200));
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
           navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
