@@ -23,7 +23,7 @@ class LivenessService:
     PROOF_TTL_SECONDS = 600
     MAX_FRAME_BYTES = 1_500_000
     MIN_ACTION_FRAMES = 8
-    MAX_ACTION_FRAMES = 12
+    MAX_ACTION_FRAMES = 36
     MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "face_landmarker.task"
     ACTIONS = ("blink", "turn_head", "open_mouth", "smile")
 
@@ -141,20 +141,30 @@ class LivenessService:
                     samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p["landmarks"], (33, 160, 158, 133, 153, 144)) + self._ear(p["landmarks"], (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
-                        # Twelve samples across ~1.5s make a short blink less likely to
-                        # fall between frames. Keep both an open-eye and closed-eye
-                        # observation; a small noisy landmark fluctuation is not enough.
-                        peak, trough = max(ears), min(ears)
-                        peak_index, trough_index = ears.index(peak), ears.index(trough)
-                        # EAR depends on camera scale and face geometry. Check the
-                        # temporal open -> closed -> open pattern relative to this
-                        # subject's own open-eye baseline, not fixed absolute limits.
-                        open_level = max(0.14, peak * 0.78)
-                        opened_before = any(value >= open_level for value in ears[:trough_index])
-                        reopened_after = any(value >= open_level for value in ears[trough_index + 1:])
+                        # Smooth single-frame landmark jitter with a three-sample median.
+                        # Three 12-frame bursts give the operator repeated chances to blink
+                        # naturally without restarting the whole four-action challenge.
+                        smooth_ears = [
+                            float(np.median(ears[max(0, i - 1):min(len(ears), i + 2)]))
+                            for i in range(len(ears))
+                        ]
+                        peak, trough = max(smooth_ears), min(smooth_ears)
+                        peak_index, trough_index = smooth_ears.index(peak), smooth_ears.index(trough)
+                        # EAR varies with face geometry, camera angle and glasses. Use a
+                        # per-subject relative threshold and require a complete open-close-
+                        # open cycle plus a meaningful absolute change. The 0.84 ratio
+                        # accommodates shallow but visible blinks from laptop cameras.
+                        open_level = max(0.14, peak * 0.88)
+                        opened_before = any(value >= open_level for value in smooth_ears[:trough_index])
+                        reopened_after = any(value >= open_level for value in smooth_ears[trough_index + 1:])
                         closed_ratio = trough / max(peak, 1e-6)
-                        passed = peak > 0.14 and closed_ratio < 0.72 and opened_before and reopened_after and peak_index != trough_index
-                        metric = round(peak - trough, 4)
+                        signal_delta = peak - trough
+                        passed = (
+                            peak > 0.14 and closed_ratio < 0.84 and signal_delta >= 0.08
+                            and opened_before and reopened_after
+                            and peak_index != trough_index
+                        )
+                        metric = round(signal_delta, 4)
                     elif action == "turn_head":
                         yaws = [self._yaw(p["landmarks"]) for p in samples]
                         passed = max(yaws) - min(yaws) > 0.09
@@ -182,7 +192,7 @@ class LivenessService:
                                 "closed_to_open_ratio": round(closed_ratio, 4),
                                 "opened_before": opened_before,
                                 "reopened_after": reopened_after,
-                                "frame_count": len(ears),
+                                "frame_count": len(ears),\n                                "blink_score": round(max(0.0, min(100.0, (0.84 - closed_ratio) / 0.24 * 100.0)), 1),
                             } if action == "blink" else {"frame_count": len(samples)}),
                             "results": results,
                         }
