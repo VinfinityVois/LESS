@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     # Server
     HOST: str = "127.0.0.1"
     PORT: int = 8000
-    DEBUG: bool = True
+    DEBUG: bool = False
 
     # Paths
     BASE_DIR: Path = Path(__file__).resolve().parent.parent
