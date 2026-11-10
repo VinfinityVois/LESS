@@ -506,3 +506,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 /* A virtual test card is a simulation, not a failed or granted physical passage. */
 .event-result.is-simulated{color:#9fc9d8;border-color:rgba(117,177,199,.28);background:rgba(75,132,154,.12)}
+
+
+.users-permission-note{margin-top:10px;padding:10px 12px;border:1px solid rgba(210,166,92,.24);border-radius:10px;background:rgba(210,166,92,.07);color:var(--text-secondary,#aeb8c4);font-size:12px;line-height:1.55;max-width:760px}
