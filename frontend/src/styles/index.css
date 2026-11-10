@@ -315,3 +315,77 @@ select:disabled{opacity:.55;cursor:not-allowed}
 .operator-dialog-field input:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(97,216,208,.09)}
 @keyframes operator-dialog-fade{from{opacity:0}to{opacity:1}}
 @keyframes operator-dialog-rise{from{opacity:0;transform:translateY(7px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+
+
+/* Auxiliary screen is a mirror for one selected panel, not a replacement for the operator workspace. */
+.live-grid--external{grid-template-columns:minmax(0,2.2fr) minmax(280px,.78fr)!important}
+.live-grid--external .verification-column{display:flex!important;min-width:0}
+.live-grid--external-video .camera-monitor-block>.camera-frame,
+.live-grid--external-video .camera-monitor-block>.camera-caption{display:none!important}
+.live-grid--external-video .camera-monitor-block{display:flex!important;flex-direction:column;min-height:0}
+.live-grid--external-video .camera-monitor-block>.panel-heading{display:flex!important;align-items:center;justify-content:space-between}
+.live-grid--external-video .events-panel{display:flex;flex-direction:column;min-height:300px;max-height:none}
+.live-grid--external-video .events-table{max-height:none;overflow-y:auto}
+.live-grid--external-events .events-panel{display:none!important}
+.live-grid--external-events .camera-monitor-block>.camera-frame{display:block!important;min-height:clamp(460px,58vh,780px)}
+.live-grid--external-events .camera-monitor-block>.camera-caption{display:flex!important}
+.live-grid--external-events .camera-monitor-block>.panel-heading{display:flex!important}
+@media(max-width:850px){
+ .live-grid--external{grid-template-columns:1fr!important}
+ .live-grid--external-video .events-panel{min-height:260px}
+}
+
+/* Biometric station: animated, high-contrast scanning surface with explicit state feedback. */
+.face-modal-backdrop{background:radial-gradient(ellipse at 50% 42%,rgba(18,49,54,.38),rgba(2,7,10,.88) 68%);backdrop-filter:blur(18px) saturate(1.15);animation:face-backdrop-in .22s ease-out}
+.face-modal{position:relative;isolation:isolate;width:min(960px,100%);border:1px solid rgba(97,216,208,.32);border-radius:17px;background:linear-gradient(150deg,#14242d 0%,#0c171e 48%,#091219 100%);box-shadow:0 34px 110px rgba(0,0,0,.72),0 0 0 1px rgba(97,216,208,.05) inset,0 0 55px rgba(53,189,180,.08);animation:face-modal-arrive .28s cubic-bezier(.2,.8,.2,1)}
+.face-modal:before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;background:linear-gradient(120deg,rgba(97,216,208,.075),transparent 34%,transparent 70%,rgba(97,216,208,.035))}
+.face-modal-header{position:sticky;top:0;z-index:8;background:rgba(12,23,30,.94);backdrop-filter:blur(14px);border-bottom-color:rgba(97,216,208,.13)}
+.face-modal-header .eyebrow{color:#72d9d0;letter-spacing:.16em}
+.face-modal-header h2{font-size:19px;letter-spacing:-.035em}
+.face-modal-header p{color:#91a8ac}
+.face-stepper{padding-top:16px;padding-bottom:16px}
+.face-stepper span{transition:color .2s ease,text-shadow .2s ease}
+.face-stepper span.is-current{color:#8df0e5;text-shadow:0 0 14px rgba(97,216,208,.4)}
+.face-stepper span.is-done{color:#9be3b0}
+.face-camera-stage{border-color:rgba(97,216,208,.36);border-radius:13px;box-shadow:0 0 0 1px rgba(97,216,208,.04) inset,0 12px 40px rgba(0,0,0,.28)}
+.face-camera-stage:after{content:"";position:absolute;z-index:2;left:0;right:0;top:-18%;height:18%;pointer-events:none;background:linear-gradient(180deg,transparent,rgba(91,229,216,.15),rgba(91,229,216,.025),transparent);animation:face-scanline 4.8s ease-in-out infinite}
+.face-camera-stage:before{content:"";position:absolute;z-index:1;inset:12% 28%;border:1px solid rgba(97,216,208,.13);border-radius:48% 48% 43% 43%;box-shadow:0 0 28px rgba(97,216,208,.055),inset 0 0 25px rgba(97,216,208,.035);pointer-events:none;animation:face-target-breathe 3.2s ease-in-out infinite}
+.face-landmark-overlay{z-index:3;filter:drop-shadow(0 0 3px rgba(87,238,221,.4))}
+.face-camera-label{z-index:4;border-color:rgba(97,216,208,.28);background:rgba(4,12,16,.84);box-shadow:0 4px 18px rgba(0,0,0,.24)}
+.face-camera-label svg{color:#82e7dc}
+.face-target{z-index:4;border-color:rgba(97,216,208,.35);box-shadow:0 0 18px rgba(97,216,208,.08);animation:face-target-pulse 2.4s ease-in-out infinite}
+.face-analysis-grid>div{border-color:rgba(157,183,194,.16);background:linear-gradient(145deg,rgba(20,35,43,.94),rgba(12,22,29,.94));transition:border-color .18s ease,transform .18s ease}
+.face-analysis-grid>div:hover{border-color:rgba(97,216,208,.35);transform:translateY(-1px)}
+.face-analysis-grid b.is-good{color:#9be3b0;text-shadow:0 0 12px rgba(139,213,165,.18)}
+.face-guidance{border-color:rgba(97,216,208,.2);background:linear-gradient(100deg,rgba(97,216,208,.09),rgba(97,216,208,.025));color:#b4cfcc}
+.liveness-card{margin:0 19px 18px;padding:17px;border:1px solid rgba(97,216,208,.17);border-radius:12px;background:linear-gradient(145deg,rgba(18,33,41,.94),rgba(10,19,25,.96));box-shadow:inset 0 1px rgba(255,255,255,.025)}
+.liveness-card h3{color:#e7f2f1;font:650 15px var(--display);letter-spacing:-.02em}
+.liveness-card p{color:#91a7aa;font-size:10px;line-height:1.65}
+.liveness-progress i{height:5px;border-radius:99px;background:#263942;transition:background .2s ease,box-shadow .2s ease}
+.liveness-progress i.is-current{background:#61d8d0;box-shadow:0 0 12px rgba(97,216,208,.45)}
+.liveness-progress i.is-done{background:#8bd5a5}
+.liveness-status{display:flex;align-items:center;gap:7px;margin-top:13px;color:#a3b8b9;font:8px var(--mono);letter-spacing:.08em}
+.liveness-status:before{content:"";width:6px;height:6px;border-radius:50%;background:#61d8d0;box-shadow:0 0 10px rgba(97,216,208,.5);animation:face-status-pulse 1.8s infinite}
+.liveness-permission-note{display:block;margin-top:10px;color:#71878d;font-size:9px;line-height:1.55}
+.face-modal-footer{padding-bottom:19px}
+.face-modal-footer .users-button,.liveness-card .users-button,.face-result .users-button{min-height:38px;border-radius:8px;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}
+.face-modal-footer .users-button--primary,.liveness-card .users-button--primary{box-shadow:0 5px 18px rgba(54,181,171,.12)}
+.face-modal-footer .users-button--primary:not(:disabled):hover,.liveness-card .users-button--primary:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 8px 24px rgba(54,181,171,.2)}
+.face-result{padding:46px 28px}
+.face-result-icon{width:62px;height:62px;box-shadow:0 0 0 8px rgba(139,213,165,.045),0 0 35px rgba(139,213,165,.1);animation:face-result-pop .32s cubic-bezier(.2,.8,.2,1)}
+.face-result-icon.is-error{box-shadow:0 0 0 8px rgba(237,136,136,.045),0 0 35px rgba(237,136,136,.1)}
+.face-result p{font-size:11px;line-height:1.7}
+.face-result p:first-of-type{max-width:590px;padding:12px 14px;border:1px solid rgba(237,136,136,.18);border-radius:9px;background:rgba(237,136,136,.055);color:#e4b5b5}
+.face-result:has(.face-result-icon:not(.is-error)) p:first-of-type{border-color:rgba(139,213,165,.17);background:rgba(139,213,165,.045);color:#c4dfce}
+.face-review>div{border-color:rgba(97,216,208,.17);background:rgba(14,26,33,.78)}
+.face-review img{border:1px solid rgba(97,216,208,.15);box-shadow:0 6px 18px rgba(0,0,0,.24)}
+.face-saving{position:sticky;bottom:0;background:rgba(8,17,23,.96);border-top:1px solid rgba(97,216,208,.16);backdrop-filter:blur(12px);animation:face-status-pulse 1.8s infinite}
+@keyframes face-backdrop-in{from{opacity:0}to{opacity:1}}
+@keyframes face-modal-arrive{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes face-scanline{0%{top:-18%;opacity:0}12%{opacity:.9}82%{opacity:.65}100%{top:100%;opacity:0}}
+@keyframes face-target-breathe{0%,100%{opacity:.4;transform:scale(.985)}50%{opacity:1;transform:scale(1.015)}}
+@keyframes face-target-pulse{0%,100%{box-shadow:0 0 12px rgba(97,216,208,.06)}50%{box-shadow:0 0 22px rgba(97,216,208,.2)}}
+@keyframes face-status-pulse{0%,100%{opacity:.65}50%{opacity:1}}
+@keyframes face-result-pop{from{opacity:0;transform:scale(.88)}to{opacity:1;transform:scale(1)}}
+@media(prefers-reduced-motion:reduce){.face-modal-backdrop,.face-modal,.face-camera-stage:after,.face-camera-stage:before,.face-target,.liveness-status:before,.face-result-icon,.face-saving{animation:none!important;transition:none!important}}
+@media(max-width:600px){.liveness-card{margin:0 12px 14px;padding:13px}.face-modal-header{position:relative}.face-modal{width:100%}}
