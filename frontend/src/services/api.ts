@@ -257,6 +257,7 @@ export async function readSerialCardLine() {
 }
 
 export interface FaceAccessChallenge {
+  nfc_uid?: string;
   challenge_id: string;
   actions: string[];
   instructions: Record<string, string>;
