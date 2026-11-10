@@ -40,6 +40,13 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     return () => window.removeEventListener("less:users-refresh", refreshUsers);
   }, [load]);
 
+  useEffect(() => {
+    if (!selected) return;
+    const refreshSelected = () => { void getUser(selected.id).then(setSelected).catch(() => undefined); };
+    window.addEventListener("less:users-refresh", refreshSelected);
+    return () => window.removeEventListener("less:users-refresh", refreshSelected);
+  }, [selected?.id]);
+
   const filtered = users.filter((user) => {
     const term = search.trim().toLocaleLowerCase("ru");
     const matches = !term || [user.name, user.position, user.nfc_uid, String(user.id)].some((v) => (v || "").toLocaleLowerCase("ru").includes(term));
@@ -127,7 +134,7 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     </div>
     {(selected.photo_data_url || selected.profile_photo_data_url) && <div className="users-biometric-photos">{selected.photo_data_url && <figure><img src={selected.photo_data_url} alt="Фото анфас"/><figcaption>АНФАС · ПРОФИЛЬНОЕ ФОТО</figcaption></figure>}{selected.profile_photo_data_url && <figure><img src={selected.profile_photo_data_url} alt="Фото в профиль"/><figcaption>ПРОФИЛЬ · БИОМЕТРИЧЕСКИЙ КАДР</figcaption></figure>}</div>}
     {!readOnly && <div className="users-detail-actions">
-      <button className="users-button users-button--primary" onClick={() => onEnroll(selected)}><ScanFace size={15}/> Регистрация биометрии</button>
+      <button className="users-button users-button--primary" onClick={() => onEnroll(selected)}><ScanFace size={15}/> {selected.face_enrolled ? "Обновить биометрию" : "Зарегистрировать биометрию"}</button>
       <button className="users-button" onClick={() => beginEdit(selected)}><Pencil size={15}/> Редактировать</button>
       <button className="users-button" disabled={busy} onClick={() => void toggleStatus(selected)}>{selected.is_active ? "Заблокировать" : "Восстановить доступ"}</button>
       <button className="users-button users-button--danger" disabled={busy} onClick={() => void remove(selected)}><Trash2 size={15}/> Удалить</button>
