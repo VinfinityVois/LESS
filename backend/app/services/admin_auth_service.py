@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import hashlib
 import secrets
-import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError, VerifyMismatchError
 from app.config import settings
+from app.services.database import sqlite3, connect_encrypted
 
 
 class AdminAuthService:
@@ -23,9 +23,7 @@ class AdminAuthService:
         self._init_db()
 
     def _conn(self):
-        conn = sqlite3.connect(settings.DB_PATH)
-        conn.row_factory = sqlite3.Row
-        return conn
+        return connect_encrypted(settings.DB_PATH)
 
     def _init_db(self) -> None:
         with self._conn() as conn:
