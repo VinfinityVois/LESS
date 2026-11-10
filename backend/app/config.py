@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     DB_PATH: Path = DATA_DIR / "skud.db"
 
     # Security
-    SECRET_KEY: str = "change-me-in-production-use-openssl-rand-hex-32"
+    SECRET_KEY: str = ""
     ARGON2_TIME_COST: int = 3
     ARGON2_MEMORY_COST: int = 65536
 
