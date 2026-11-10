@@ -99,7 +99,8 @@ class LivenessService:
         blendshapes = result.face_blendshapes or []
         smile_score = 0.0
         if blendshapes:
-            categories = blendshapes[0].categories
+            categories = blendshapes[0]
+            categories = categories.categories if hasattr(categories, "categories") else categories
             scores = {item.category_name: item.score for item in categories}
             smile_score = (scores.get("mouthSmileLeft", 0.0) + scores.get("mouthSmileRight", 0.0)) / 2.0
         return {"landmarks": faces[0], "smile": float(smile_score)}
