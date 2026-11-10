@@ -144,3 +144,15 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
  .less-sidebar{height:100dvh}
  .less-sidebar.is-collapsible,.less-sidebar.is-collapsible:hover,.less-sidebar.is-pinned{width:254px;min-width:254px;flex-basis:254px}
 }
+
+
+/* Main screen becomes the operator event console while the auxiliary screen shows video. */
+.live-grid--external{grid-template-columns:minmax(0,1fr) minmax(280px,.8fr)}
+.live-grid--external .camera-column{min-height:0}
+.live-grid--external .events-panel{flex:1;min-height:0}
+.live-grid--external .events-table{overflow:auto}
+.external-display-notice{min-height:72px;display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid rgba(97,216,208,.18);border-radius:10px;background:rgba(97,216,208,.045);color:var(--cyan)}
+.external-display-notice strong,.external-display-notice span{display:block}
+.external-display-notice strong{font-size:11px;color:#d7e8e7}
+.external-display-notice span{margin-top:4px;font-size:9px;color:#81969b}
+@media(max-width:850px){.live-grid--external{grid-template-columns:1fr}.live-grid--external .verification-column{overflow:visible}}
