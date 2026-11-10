@@ -76,7 +76,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
-        {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>Камера продолжает работать на дополнительном экране; поток не останавливается при переключении его режима.</span></div></div>}
+        {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>Внешний экран активен. Видеопоток остаётся подключённым при переключении между видео и событиями.</span></div></div>}
         {<div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
         <section className="events-panel">
