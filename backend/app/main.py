@@ -618,9 +618,14 @@ async def create_face_access_challenge(body: FaceAccessChallengeRequest, request
         db_service.log_access(body.nfc_uid, "denied", "nfc+face", "biometric_consent_missing", user_id=subject["id"], direction=body.direction, door_id=body.door_id)
         raise HTTPException(status_code=403, detail={"code": "biometric_consent_missing", "message": "Нет действующего согласия на обработку биометрии. Проход запрещён."})
     challenge = liveness_service.create(request.state.admin["id"], subject["id"])
+    profile = db_service.get_user(subject["id"], include_logs=False) or {}
     return {
         **challenge,
-        "user": {"id": subject["id"], "name": subject.get("name") or "Без имени", "position": subject.get("position") or ""},
+        "user": {
+            "id": subject["id"], "name": subject.get("name") or "Без имени",
+            "position": subject.get("position") or "",
+            "photo_data_url": profile.get("photo_data_url") or profile.get("profile_photo_data_url"),
+        },
         "door_id": body.door_id,
         "direction": body.direction,
     }
@@ -697,7 +702,14 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
         return {
             "decision": "deny", "code": decision_code, "reason": decision_message,
             "similarity": round(best["score"] * 100, 1) if best else None,
-            "subject": {"id": subject["id"], "name": subject.get("name") or "Без имени", "position": subject.get("position") or ""},
+            "subject": {
+                "id": (matched or {}).get("user_id", subject["id"]),
+                "name": (matched or {}).get("name") or subject.get("name") or "Без имени",
+                "position": (matched or {}).get("position") or subject.get("position") or "",
+                "photo_data_url": (matched or {}).get("photo_data_url") or (
+                    (db_service.get_user(subject["id"], include_logs=False) or {}).get("photo_data_url")
+                ),
+            },
         }
 
     ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
