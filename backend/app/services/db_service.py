@@ -129,8 +129,11 @@ class DBService:
         user["is_active"] = int(user.get("is_active") or 0)
         user["face_enrolled"] = int(bool(user.get("face_embedding")))
         user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
+        for private_field in ("face_embedding", "face_profile_embedding", "pin_hash", "fingerprint_hash"):
+            user.pop(private_field, None)
         if not include_photo:
             user.pop("photo_blob", None)
+            user.pop("profile_photo_blob", None)
         return user
 
     def add_user(self, nfc_uid: str, name: str = "", pin_hash: str = None,
