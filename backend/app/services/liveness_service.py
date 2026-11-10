@@ -25,7 +25,7 @@ class LivenessService:
     MIN_ACTION_FRAMES = 8
     MAX_ACTION_FRAMES = 12
     MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "face_landmarker.task"
-    ACTIONS = ("blink", "turn_head", "open_mouth")
+    ACTIONS = ("blink", "turn_head", "open_mouth", "smile")
 
     def __init__(self) -> None:
         self._challenges: dict[str, dict[str, Any]] = {}
@@ -55,6 +55,7 @@ class LivenessService:
                 "blink": "Моргните один раз, глядя в камеру",
                 "turn_head": "Медленно поверните голову в сторону и верните прямо",
                 "open_mouth": "Откройте рот и закройте его",
+                "smile": "Улыбнитесь и верните нейтральное выражение",
             },
         }
 
@@ -95,7 +96,13 @@ class LivenessService:
         faces = result.face_landmarks or []
         if len(faces) != 1:
             raise ValueError("В каждом кадре должно быть ровно одно обнаруженное лицо.")
-        return faces[0]
+        blendshapes = result.face_blendshapes or []
+        smile_score = 0.0
+        if blendshapes:
+            categories = blendshapes[0].categories
+            scores = {item.category_name: item.score for item in categories}
+            smile_score = (scores.get("mouthSmileLeft", 0.0) + scores.get("mouthSmileRight", 0.0)) / 2.0
+        return {"landmarks": faces[0], "smile": float(smile_score)}
 
     def verify(self, challenge_id: str, admin_id: int, subject_id: int, evidence: list[dict[str, Any]]) -> dict[str, Any]:
         challenge = self._challenges.get(challenge_id)
@@ -122,6 +129,7 @@ class LivenessService:
                 min_face_detection_confidence=0.65,
                 min_face_presence_confidence=0.65,
                 min_tracking_confidence=0.5,
+                output_face_blendshapes=True,
             )
             landmarker = vision.FaceLandmarker.create_from_options(options)
             try:
@@ -131,7 +139,7 @@ class LivenessService:
                         return {"verified": False, "reason": "insufficient_frames", "action": action, "received_frames": len(frames), "required_frames": self.MIN_ACTION_FRAMES}
                     samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
-                        ears = [(self._ear(p, (33, 160, 158, 133, 153, 144)) + self._ear(p, (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
+                        ears = [(self._ear(p["landmarks"], (33, 160, 158, 133, 153, 144)) + self._ear(p["landmarks"], (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
                         # Eight samples across ~1.5s make a short blink less likely to
                         # fall between frames. Keep both an open-eye and closed-eye
                         # observation; a small noisy landmark fluctuation is not enough.
@@ -139,13 +147,17 @@ class LivenessService:
                         passed = peak > 0.20 and trough < 0.18 and (peak - trough) > 0.045
                         metric = round(peak - trough, 4)
                     elif action == "turn_head":
-                        yaws = [self._yaw(p) for p in samples]
+                        yaws = [self._yaw(p["landmarks"]) for p in samples]
                         passed = max(yaws) - min(yaws) > 0.09
                         metric = round(max(yaws) - min(yaws), 4)
                     elif action == "open_mouth":
-                        mouths = [self._mouth_open(p) for p in samples]
+                        mouths = [self._mouth_open(p["landmarks"]) for p in samples]
                         passed = max(mouths) > 0.20 and min(mouths) < 0.18 and (max(mouths) - min(mouths)) > 0.075
                         metric = round(max(mouths) - min(mouths), 4)
+                    elif action == "smile":
+                        smiles = [p["smile"] for p in samples]
+                        passed = max(smiles) > 0.42 and min(smiles) < 0.34 and (max(smiles) - min(smiles)) > 0.16
+                        metric = round(max(smiles) - min(smiles), 4)
                     else:
                         passed, metric = False, 0.0
                     results.append({"action": action, "passed": bool(passed), "signal_delta": metric})
