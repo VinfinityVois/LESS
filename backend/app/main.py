@@ -6,6 +6,7 @@ LESS Backend — точка входа
 from contextlib import asynccontextmanager
 import asyncio
 import json
+import hashlib
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -486,8 +487,12 @@ async def access_check(body: AccessCheckRequest):
     else:
         result = access_policy.evaluate(ctx)
     event = "granted" if result.decision == AccessDecision.ALLOW else "denied"
+    audit_identity = body.nfc_uid or (
+        "GUEST:" + hashlib.sha256(body.guest_code.strip().upper().encode("utf-8")).hexdigest()[:12]
+        if body.guest_code else ""
+    )
     db_service.log_access(
-        nfc_uid=body.nfc_uid or body.guest_code or "",
+        nfc_uid=audit_identity,
         event_type=event,
         factor_used=body.factor,
         reason=f"{result.code}: {result.reason}",
