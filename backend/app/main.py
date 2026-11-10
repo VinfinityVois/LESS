@@ -492,6 +492,14 @@ class FaceAccessVerifyRequest(BaseModel):
     direction: str = Field(default="in", pattern="^(in|out)$")
     evidence: list[LivenessActionEvidence] = Field(min_length=4, max_length=4)
 
+    @field_validator("evidence")
+    @classmethod
+    def limit_total_evidence_size(cls, evidence: list[LivenessActionEvidence]) -> list[LivenessActionEvidence]:
+        total_chars = sum(len(frame) for item in evidence for frame in item.frames)
+        if total_chars > 24_000_000:
+            raise ValueError("Суммарный размер кадров проверки превышает 24 МБ.")
+        return evidence
+
 class AccessCheckRequest(BaseModel):
     nfc_uid: Optional[str] = Field(default=None, max_length=128)
     user_id: Optional[int] = Field(default=None, gt=0)
