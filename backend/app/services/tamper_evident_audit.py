@@ -86,6 +86,9 @@ class TamperEvidentAudit:
         except Exception as exc:
             self._healthy = False
             raise RuntimeError("Цепочка аудита повреждена. Запись операций заблокирована до расследования.") from exc
+        if self._sequence and sequence != self._sequence:
+            self._healthy = False
+            raise RuntimeError("Количество записей аудита изменилось после запуска процесса.")
         self._sequence, self._last_hash = sequence, previous
 
     def append(self, event: str, actor_id: int | None = None, target: str = "", details: Any = None) -> dict[str, Any]:
@@ -127,6 +130,7 @@ class TamperEvidentAudit:
                 return {"valid": False, "records": 0, "error": self._configuration_error or "Ключ аудита не настроен."}
             previous = self.GENESIS
             sequence = 0
+            expected_sequence = self._sequence
             try:
                 if self.path.exists():
                     with self.path.open("r", encoding="utf-8") as stream:
@@ -142,6 +146,8 @@ class TamperEvidentAudit:
                                 raise ValueError(f"Подпись не совпадает в строке {line_number}")
                             sequence += 1
                             previous = expected
+                if expected_sequence and sequence != expected_sequence:
+                    raise ValueError("Количество записей аудита изменилось после запуска процесса.")
                 healthy = True
             except Exception as exc:
                 healthy = False
