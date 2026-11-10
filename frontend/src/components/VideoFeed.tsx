@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { lessWs } from "../services/websocket";
 
-export default function VideoFeed() {
+export default function VideoFeed({ onFrame, hidden = false }: { onFrame?: (blob: Blob) => void; hidden?: boolean }) {
   const [connected, setConnected] = useState(false);
   const [fps, setFps] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -17,6 +17,7 @@ export default function VideoFeed() {
       if (event.data?.type === "resume-camera" && paused) { paused = false; lessWs.connect(); }
     };
     lessWs.onFrame((blob) => {
+      onFrame?.(blob);
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
       }
@@ -48,7 +49,7 @@ export default function VideoFeed() {
   }, []);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center bg-black">
+    <div className={"absolute inset-0 flex items-center justify-center bg-black " + (hidden ? "hidden" : "")}>
       <img
         ref={imgRef}
         alt="Camera feed"
