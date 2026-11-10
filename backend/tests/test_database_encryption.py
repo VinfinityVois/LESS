@@ -35,6 +35,8 @@ class SQLCipherMigrationTests(unittest.TestCase):
                 conn.execute("SELECT value FROM private_records").fetchone()[0],
                 "employee-private-data",
             )
+        with self.assertRaises(Exception):
+            conn.execute("SELECT 1")
 
         backups = list(Path(self.temp_dir.name).glob("legacy.db.pre-encryption-*.sqlcipher"))
         self.assertEqual(len(backups), 1)
