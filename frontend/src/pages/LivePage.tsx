@@ -47,7 +47,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     if (!raw) return null;
     let value = raw.trim();
     try { const parsed = JSON.parse(value); if (parsed && typeof parsed.uid === "string") value = parsed.uid; } catch { /* plain UID line */ }
-    value = value.replace(/^(?:UID|CARD|NFC|CARD_UID)\\s*[:=]\\s*/i, "").trim();
+    value = value.replace(/^(?:UID|CARD|NFC|CARD_UID)\s*[:=]\s*/i, "").trim();
     if (!/^[A-Za-z0-9:_ -]{4,80}$/.test(value)) return null;
     return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null;
   };
@@ -240,7 +240,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <h3>{faceChallenge.instructions[faceChallenge.actions[challengeStep]] || "Выполните действие перед камерой"}</h3>
           <p>Карта сотрудника: {faceChallenge.user.name}. Выполните действие, глядя в камеру.</p>
           {accessBusy && <div className="face-access-progress"><span>Сбор кадров · {capturePercent}%</span><i><b style={{width: capturePercent + "%"}}/></i></div>}
-          <div className="face-access-actions"><button className="users-button" disabled={accessBusy} onClick={cancelFaceChallenge}>Отмена</button><button className="users-button users-button--primary" disabled={accessBusy || !latestFrameRef.current} onClick={() => void captureFaceAction()}>{accessBusy ? "Анализ…" : "Выполнить действие"}</button></div>
+          <div className="face-access-actions"><button className="users-button" disabled={accessBusy} onClick={cancelFaceChallenge}>Отмена</button><button className="users-button users-button--primary" disabled={accessBusy} onClick={() => void captureFaceAction()}>{accessBusy ? "Анализ…" : "Выполнить действие"}</button></div>
         </section>}
         {accessResult && <div className={"face-access-result " + (accessResult.decision === "allow" ? "is-allowed" : "is-denied")} role="status"><strong>{accessResult.decision === "allow" ? "ЛИЧНОСТЬ ПОДТВЕРЖДЕНА · ДОСТУП РАЗРЕШЁН" : "ДОСТУП ЗАПРЕЩЁН"}</strong><span>{accessResult.reason}</span>{accessResult.similarity != null && <small>Сходство SFace: {accessResult.similarity}% · оценка модели, не вероятность личности</small>}</div>}
         {unknownIdentity && <div className="live-identity-warning" role="alert"><CircleAlert size={17}/><div><strong>НЕИЗВЕСТНЫЙ ИЛИ НЕСОВПАДАЮЩИЙ СУБЪЕКТ</strong><span>{unknownIdentity.reason?.includes("identity_mismatch") ? "UID карты не соответствует карточке сотрудника." : "Карта не привязана к действующему сотруднику."} Проход запрещён. UID: {unknownIdentity.nfc_uid || "не указан"}.</span></div></div>}
