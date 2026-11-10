@@ -57,3 +57,6 @@ frontend/src-tauri/WixTools/
 
 # Downloaded ML model assets (install with backend/scripts/download_models.py)
 backend/models/*.task
+
+# Downloaded YuNet/SFace ONNX model weights (install with backend/scripts/download_face_models.py)
+backend/models/*.onnx
