@@ -295,7 +295,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         <section className="surface-panel hardware-security-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ФИЗИЧЕСКИЙ КОНТУР</span><h2>Контроллер двери</h2></div><span className={"standby-pill " + (hardwareStatus?.authenticated ? "is-connected" : "")}>{hardwareStatus?.authenticated ? "AUTH OK" : "OFFLINE"}</span></div>
           <div className="hardware-state-row"><span>Канал Serial</span><b>{hardwareStatus?.serial_connected ? "ПОДКЛЮЧЁН" : "НЕТ СВЯЗИ"}</b></div>
-          <div className="hardware-state-row"><span>Подпись контроллера</span><b>{hardwareStatus?.authenticated ? "ПОДТВЕРЖДЕНА" : "НЕ ПОДТВЕРЖДЕНА"}</b></div>
+          <div className="hardware-state-row"><span>Аутентификация AES-GCM</span><b>{hardwareStatus?.authenticated ? "ПОДТВЕРЖДЕНА" : "НЕ ПОДТВЕРЖДЕНА"}</b></div>
           <div className="hardware-state-row"><span>Замок</span><b>{hardwareStatus?.lock_state || "НЕИЗВЕСТНО"}</b></div>
           <div className="hardware-state-row"><span>Датчик двери</span><b>{hardwareStatus?.door_state || "НЕИЗВЕСТНО"}</b></div>
           {hardwareStatus?.alarm && <p className="hardware-alarm" role="alert">ТРЕВОГА · {hardwareStatus.alarm}</p>}
