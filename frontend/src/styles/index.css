@@ -502,3 +502,7 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
   .camera-actions > * { flex: 1 1 auto; }
   .face-stepper { gap: 6px; font-size: 8px; }
 }
+
+
+/* A virtual test card is a simulation, not a failed or granted physical passage. */
+.event-result.is-simulated{color:#9fc9d8;border-color:rgba(117,177,199,.28);background:rgba(75,132,154,.12)}
