@@ -90,9 +90,12 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     if (!serialOk) return;
     let active = true;
     const timer = window.setInterval(async () => {
-      if (!active || challengeBusyRef.current || faceChallenge) return;
+      if (!active || challengeBusyRef.current) return;
       try {
+        // Keep draining the serial stream while face verification is active:
+        // authenticated controller ACK/door telemetry shares this transport.
         const raw = await readSerialCardLine();
+        if (faceChallenge) return;
         const uid = parseCardUid(raw);
         if (!uid || uid === seenCardRef.current) return;
         seenCardRef.current = uid;
