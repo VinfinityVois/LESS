@@ -1,7 +1,6 @@
 """
-SQLite service for LESS.
-Sensitive face templates and profile photos are encrypted at rest with AES-GCM.
-Set a unique SECRET_KEY in the backend environment before using real personal data.
+SQLite service for LESS. The complete database is encrypted with SQLCipher;
+face templates and profile photos receive an additional AES-GCM encryption layer.
 """
 from loguru import logger
 from typing import Optional, List, Dict, Any
