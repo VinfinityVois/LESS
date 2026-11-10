@@ -7,7 +7,7 @@ from app.services.tamper_evident_audit import TamperEvidentAudit
 
 
 def test_audit_chain_appends_and_verifies(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(settings, "AUDIT_HMAC_KEY", "a" * 64)
+    monkeypatch.setattr(settings, "AUDIT_HMAC_KEY", bytes(range(32)).hex())
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
     journal = TamperEvidentAudit()
 
@@ -22,7 +22,7 @@ def test_audit_chain_appends_and_verifies(monkeypatch, tmp_path: Path):
 
 
 def test_audit_chain_detects_tampering_and_blocks_append(monkeypatch, tmp_path: Path):
-    monkeypatch.setattr(settings, "AUDIT_HMAC_KEY", "b" * 64)
+    monkeypatch.setattr(settings, "AUDIT_HMAC_KEY", bytes(range(1, 33)).hex())
     monkeypatch.setattr(settings, "DATA_DIR", tmp_path)
     journal = TamperEvidentAudit()
     journal.append("access.event", target="door:main", details={"decision": "allow"})
