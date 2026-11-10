@@ -3,7 +3,7 @@ import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
 import { faceEnroll } from "../services/api";
 import { Camera, Check, CircleAlert, ScanFace, X, RotateCcw } from "lucide-react";
 
-type Shot = { dataUrl: string; quality: number; label: string };
+type Shot = { dataUrl: string; quality: number; label: string; landmarks: number[][] };
 type Stage = "front" | "profile" | "review" | "saving" | "done" | "error";
 const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10];
 
@@ -15,7 +15,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const rafRef = useRef<number>(0);
   const lastVideoTime = useRef(-1);
   const [stage, setStage] = useState<Stage>("front");
-  const [landmarks, setLandmarks] = useState<Array<{x:number;y:number}> | null>(null);
+  const [landmarks, setLandmarks] = useState<Array<{x:number;y:number;z:number}> | null>(null);
   const [faceFound, setFaceFound] = useState(false);
   const [yaw, setYaw] = useState(0);
   const [quality, setQuality] = useState(0);
@@ -50,7 +50,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
             const face = output.faceLandmarks?.[0];
             if (face?.length) {
               setFaceFound(true);
-              setLandmarks(face.map((p) => ({ x: p.x, y: p.y })));
+              setLandmarks(face.map((p) => ({ x: p.x, y: p.y, z: p.z })));
               const eyeMid = (face[33].x + face[263].x) / 2;
               const noseOffset = (face[1].x - eyeMid) / Math.max(.01, Math.abs(face[263].x - face[33].x));
               const estimate = Math.max(-90, Math.min(90, noseOffset * 110));
@@ -90,7 +90,14 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const lightScore = mean > 55 && mean < 210 ? 100 : Math.max(15, 100 - Math.abs(mean - 130));
     const contrastScore = Math.min(100, deviation * 1.8);
     const score = Math.round(lightScore * .65 + contrastScore * .35);
-    const shot: Shot = { dataUrl: canvas.toDataURL("image/jpeg", .9), quality: score, label: stage === "front" ? "Анфас" : "Профиль" };
+    const eyeDistance = Math.max(.001, Math.hypot(landmarks![33].x - landmarks![263].x, landmarks![33].y - landmarks![263].y));
+    const origin = landmarks![1];
+    const template = landmarks!.map((point) => [
+      Number(((point.x - origin.x) / eyeDistance).toFixed(5)),
+      Number(((point.y - origin.y) / eyeDistance).toFixed(5)),
+      Number(((point.z - origin.z) / eyeDistance).toFixed(5)),
+    ]);
+    const shot: Shot = { dataUrl: canvas.toDataURL("image/jpeg", .9), quality: score, label: stage === "front" ? "Анфас" : "Профиль", landmarks: template };
     if (stage === "front") { setShots((s) => ({ ...s, front: shot })); setStage("profile"); }
     else { setShots((s) => ({ ...s, profile: shot })); setStage("review"); }
   };
@@ -100,8 +107,17 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       // The current backend endpoint accepts a user ID only. It does not accept the captured
       // image payload, so the UI never claims these local preview frames were persisted.
-      const response = await faceEnroll(userId);
-      setResult(response?.message || "Backend подтвердил запрос регистрации биометрии.");
+      const response = await faceEnroll(userId, {
+        front_landmarks: shots.front!.landmarks,
+        profile_landmarks: shots.profile!.landmarks,
+        front_photo: shots.front!.dataUrl,
+        profile_photo: shots.profile!.dataUrl,
+      });
+      const matches = response?.duplicate_candidates || [];
+      const matchText = matches.length
+        ? " Возможные совпадения: " + matches.map((item: { name: string; similarity: number }) => item.name + " (" + item.similarity + "%)").join(", ") + ". Проверьте вручную."
+        : " Похожих зарегистрированных шаблонов не найдено.";
+      setResult((response?.message || "Биометрический профиль сохранён.") + matchText);
       setStage("done");
     } catch (e: any) { setResult(e?.response?.data?.detail || e?.message || "Backend не смог зарегистрировать биометрию."); setStage("error"); }
   };

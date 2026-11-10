@@ -4,7 +4,7 @@ LESS Backend — точка входа
 """
 
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
@@ -113,103 +113,12 @@ async def serial_connect(port: Optional[str] = None):
     return {"success": ok, "port": port or settings.SERIAL_PORT}
 
 
-class UserCreateRequest(BaseModel):
-    nfc_uid: str = Field(min_length=1, max_length=128)
-    name: str = Field(default="", max_length=200)
-    position: str = Field(default="", max_length=200)
-    pin: Optional[str] = Field(default=None, max_length=64)
-    is_active: bool = True
-    photo_data_url: Optional[str] = None
-
-
-class UserUpdateRequest(BaseModel):
-    nfc_uid: Optional[str] = Field(default=None, min_length=1, max_length=128)
-    name: Optional[str] = Field(default=None, max_length=200)
-    position: Optional[str] = Field(default=None, max_length=200)
-    pin: Optional[str] = Field(default=None, max_length=64)
-    is_active: Optional[bool] = None
-    photo_data_url: Optional[str] = None
-
-
-class FaceEnrollRequest(BaseModel):
-    front_landmarks: list[list[float]]
-    profile_landmarks: list[list[float]]
-    front_photo: str
-    profile_photo: str
-
-
-@app.get("/api/users")
-async def list_users(include_inactive: bool = Query(True)):
-    return {"users": db_service.list_users(include_inactive=include_inactive)}
-
-
 @app.post("/api/users")
-async def create_user(body: UserCreateRequest):
+async def create_user(nfc_uid: str, name: str = "", pin: str = None):
     from app.services.crypto_service import crypto_service
-    pin_hash = crypto_service.hash_secret(body.pin) if body.pin else None
-    try:
-        user_id = db_service.add_user(
-            nfc_uid=body.nfc_uid.strip(), name=body.name.strip(),
-            position=body.position.strip(), pin_hash=pin_hash,
-            is_active=body.is_active, photo_data_url=body.photo_data_url,
-        )
-    except Exception as exc:
-        raise HTTPException(status_code=409, detail="UID уже используется или запись не может быть создана.") from exc
-    return db_service.get_user(user_id, include_logs=False)
-
-
-@app.get("/api/users/{user_id}")
-async def get_user(user_id: int):
-    user = db_service.get_user(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
-    return user
-
-
-@app.patch("/api/users/{user_id}")
-async def update_user(user_id: int, body: UserUpdateRequest):
-    from app.services.crypto_service import crypto_service
-    changes = body.model_dump(exclude_unset=True)
-    if "pin" in changes:
-        pin = changes.pop("pin")
-        if pin:
-            changes["pin_hash"] = crypto_service.hash_secret(pin)
-    try:
-        updated = db_service.update_user(user_id, changes)
-    except Exception as exc:
-        raise HTTPException(status_code=409, detail="UID уже используется или изменение не удалось.") from exc
-    if not updated:
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
-    return db_service.get_user(user_id)
-
-
-@app.delete("/api/users/{user_id}")
-async def remove_user(user_id: int, hard: bool = Query(False)):
-    if not db_service.delete_user(user_id, hard=hard):
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
-    return {"success": True, "deleted": hard, "is_active": False if not hard else None}
-
-
-@app.post("/api/users/{user_id}/face-enroll")
-async def enroll_face(user_id: int, body: FaceEnrollRequest):
-    user = db_service.get_user(user_id, include_logs=False)
-    if not user:
-        raise HTTPException(status_code=404, detail="Пользователь не найден.")
-    if len(body.front_landmarks) < 300 or len(body.profile_landmarks) < 300:
-        raise HTTPException(status_code=422, detail="Недостаточно контрольных точек лица.")
-    if len(body.front_photo) > 8_000_000 or len(body.profile_photo) > 8_000_000:
-        raise HTTPException(status_code=413, detail="Изображение превышает допустимый размер.")
-    candidates = db_service.find_similar_faces(user_id=user_id, landmarks=body.front_landmarks, limit=5)
-    db_service.save_face_profile(
-        user_id=user_id, front_landmarks=body.front_landmarks,
-        profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
-    )
-    return {
-        "success": True,
-        "message": "Биометрический профиль сохранён.",
-        "duplicate_candidates": candidates,
-        "note": "Сходство рассчитывается по геометрии контрольных точек и требует проверки оператором.",
-    }
+    pin_hash = crypto_service.hash_secret(pin) if pin else None
+    user_id = db_service.add_user(nfc_uid=nfc_uid, name=name, pin_hash=pin_hash)
+    return {"id": user_id, "nfc_uid": nfc_uid}
 
 
 class AccessCheckRequest(BaseModel):
@@ -247,8 +156,6 @@ async def access_check(body: AccessCheckRequest):
         factor_used=body.factor,
         reason=f"{result.code}: {result.reason}",
         user_id=body.user_id,
-        direction=body.direction,
-        door_id=body.door_id,
     )
     return {
         "decision": result.decision.value,

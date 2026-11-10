@@ -22,6 +22,9 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [profilePhoto, setProfilePhoto] = useState("");
+  const [photoError, setPhotoError] = useState("");
+  const photoRef = useRef<HTMLInputElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -36,10 +39,11 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
     return matches && (filter === "all" || (filter === "active" ? !!user.is_active : !user.is_active));
   });
 
-  const resetForm = () => { setForm(emptyForm); setEditId(null); setShowForm(false); setMessage(""); };
+  const resetForm = () => { setForm(emptyForm); setEditId(null); setShowForm(false); setMessage(""); setProfilePhoto(""); setPhotoError(""); if (photoRef.current) photoRef.current.value = ""; };
   const beginEdit = (user: UserType) => {
     setSelected(null);
     setForm({ name: user.name || "", position: user.position || "", nfc_uid: user.nfc_uid || "", pin: "" });
+    setProfilePhoto(user.photo_data_url || "");
     setEditId(user.id);
     setShowForm(true);
   };
@@ -47,8 +51,8 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
     if (!form.nfc_uid.trim()) { setMessage("Укажите UID карты или идентификатор пропуска."); return; }
     setBusy(true); setMessage(""); setError("");
     try {
-      if (editId !== null) await updateUser(editId, { name: form.name.trim(), position: form.position.trim(), nfc_uid: form.nfc_uid.trim(), pin: form.pin || undefined });
-      else await createUser({ name: form.name.trim(), position: form.position.trim(), nfc_uid: form.nfc_uid.trim(), pin: form.pin || undefined });
+      if (editId !== null) await updateUser(editId, { name: form.name.trim(), position: form.position.trim(), nfc_uid: form.nfc_uid.trim(), pin: form.pin || undefined, photo_data_url: profilePhoto || undefined });
+      else await createUser({ name: form.name.trim(), position: form.position.trim(), nfc_uid: form.nfc_uid.trim(), pin: form.pin || undefined, photo_data_url: profilePhoto || undefined });
       await load(); resetForm(); setMessage(editId !== null ? "Изменения сохранены." : "Пользователь добавлен.");
     } catch (e: any) { setMessage(e?.response?.data?.detail || e?.response?.data?.error || e.message || "Не удалось сохранить пользователя."); }
     finally { setBusy(false); }
@@ -99,7 +103,7 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
   if (selected) return <section className="content-section users-page">
     <button className="users-back" onClick={() => setSelected(null)}><ChevronLeft size={16}/> К списку сотрудников</button>
     <div className="users-detail-head">
-      <div className="user-avatar-large"><UserRound size={30}/></div>
+      <div className="user-avatar-large">{selected.photo_data_url ? <img src={selected.photo_data_url} alt="Фото сотрудника"/> : <UserRound size={30}/>}</div>
       <div className="users-detail-name"><span className="eyebrow">ПРОФИЛЬ СОТРУДНИКА · ID {selected.id}</span><h1>{selected.name || "Без имени"}</h1><p>{selected.position || "Должность не указана"} · UID {selected.nfc_uid}</p></div>
       <span className={`user-status ${selected.is_active ? "is-active" : "is-blocked"}`}>{statusLabel(selected.is_active)}</span>
     </div>
@@ -126,6 +130,7 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
     <div className="page-heading"><div><span className="eyebrow">УПРАВЛЕНИЕ ПЕРСОНАЛОМ</span><h1>Сотрудники и доступ</h1><p>Регистрация, статусы, биометрические профили и история посещений.</p></div><div className="users-toolbar-actions"><button className="users-button" onClick={() => importRef.current?.click()} disabled={busy}><Upload size={15}/> Импортировать</button><button className="users-button users-button--primary" onClick={() => { resetForm(); setShowForm(true); }}><Plus size={16}/> Добавить пользователя</button><input ref={importRef} type="file" accept=".csv,.json,application/json,text/csv" hidden onChange={(e) => void importFile(e.target.files?.[0])}/></div></div>
     <div className="users-summary"><div><span>ВСЕГО</span><strong>{users.length}</strong></div><div><span>АКТИВНЫЕ</span><strong>{users.filter((u) => !!u.is_active).length}</strong></div><div><span>ЗАБЛОКИРОВАНЫ</span><strong>{users.filter((u) => !u.is_active).length}</strong></div><div><span>С БИОМЕТРИЕЙ</span><strong>{users.filter((u) => !!u.face_enrolled).length}</strong></div></div>
     {showForm && <div className="users-form-card"><div className="users-section-title"><div><span className="eyebrow">{editId !== null ? "ИЗМЕНЕНИЕ ДАННЫХ" : "НОВАЯ УЧЁТНАЯ ЗАПИСЬ"}</span><h2>{editId !== null ? "Редактирование пользователя" : "Добавление пользователя"}</h2></div><button className="users-icon-button" onClick={resetForm} aria-label="Закрыть форму"><X size={17}/></button></div>
+      <div className="users-photo-picker"><div className="users-photo-preview">{profilePhoto ? <img src={profilePhoto} alt="Предпросмотр фото профиля"/> : <UserRound size={25}/>}</div><div><b>Фото профиля</b><span>Загрузите фотографию JPG, PNG или WebP. Файл будет отправлен в backend и сохранён в зашифрованном виде.</span><input ref={photoRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (!file) return; if (file.size > 5 * 1024 * 1024) { setPhotoError("Максимальный размер фотографии — 5 МБ."); return; } const reader = new FileReader(); reader.onload = () => { setProfilePhoto(String(reader.result || "")); setPhotoError(""); }; reader.readAsDataURL(file); }}/>{photoError && <em>{photoError}</em>}</div><button className="users-button" type="button" onClick={() => { setProfilePhoto(""); if (photoRef.current) photoRef.current.value = ""; }}>Убрать фото</button></div>
       <div className="users-form-grid"><label>ФИО<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Иванов Иван Иванович"/></label><label>Должность / подразделение<input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="Сотрудник отдела"/></label><label>UID карты / пропуска<input value={form.nfc_uid} onChange={(e) => setForm({ ...form, nfc_uid: e.target.value })} placeholder="04:A2:…"/></label><label>PIN-код <span>(необязательно)</span><input type="password" value={form.pin} onChange={(e) => setForm({ ...form, pin: e.target.value })} placeholder="Задайте PIN"/></label></div>
       <div className="users-form-footer"><span>Дата регистрации будет установлена backend при создании записи.</span><div><button className="users-button" onClick={resetForm}>Отмена</button><button className="users-button users-button--primary" onClick={() => void save()} disabled={busy}>{busy ? "Сохранение…" : editId !== null ? "Сохранить изменения" : "Создать пользователя"}</button></div></div>{message && <p className="users-message">{message}</p>}
     </div>}
