@@ -15,6 +15,7 @@ from datetime import timedelta
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from app.config import settings
 from app.services.database import connect_encrypted, ensure_encrypted_database
+from app.services.tamper_evident_audit import audit_journal
 
 
 class DBService:
@@ -522,6 +523,16 @@ class DBService:
                    reason: str = None, user_id: int = None, direction: str = None,
                    door_id: str = None) -> int:
         now = datetime.now(timezone.utc).isoformat()
+        # Write the independently chained audit record first. If it cannot be
+        # durably appended, do not report or persist a successful access event.
+        audit_journal.append(
+            "access.event",
+            target=str(user_id if user_id is not None else nfc_uid or "unknown"),
+            details={
+                "event_type": event_type, "factor": factor_used, "reason": reason,
+                "direction": direction, "door_id": door_id, "timestamp": now,
+            },
+        )
         with self._get_conn() as conn:
             cur = conn.execute(
                 """INSERT INTO access_logs (nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at)
