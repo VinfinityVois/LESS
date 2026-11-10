@@ -240,9 +240,9 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       const detail = e?.response?.data?.detail;
       const diagnostic = typeof detail === "string"
         ? detail
-        : detail?.message || (detail?.failed_action
-          ? `Не удалось подтвердить действие «${detail.failed_action}». Повторите его медленнее, удерживая лицо в кадре.`
-          : e?.message);
+        : detail?.failed_action
+          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Измеренный сигнал: ${detail.signal_delta ?? "нет данных"}. Повторите движение плавнее, удерживая лицо в кадре.`
+          : detail?.message || e?.message;
       setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
       setStage("error");
     } finally {
