@@ -664,8 +664,16 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
         final_frame = body.evidence[-1].frames[-1]
         observed = await asyncio.to_thread(face_recognition_service.embedding_from_image, final_frame)
     except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail={"code": "face_engine_unavailable", "message": "Модуль распознавания лица недоступен или модели не установлены."}) from exc
+        ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
+        access_policy.register_denied(ctx, "face_engine_unavailable")
+        event_id = db_service.log_access(body.nfc_uid, "denied", "nfc+face", "face_engine_unavailable", user_id=subject["id"], direction=direction.value, door_id=body.door_id)
+        admin_auth_service.audit(admin_id, "access.face_engine_unavailable", str(event_id), str(exc))
+        raise HTTPException(status_code=503, detail={"code": "face_engine_unavailable", "message": "Модуль распознавания лица недоступен или модели не установлены. Проход запрещён."}) from exc
     except ValueError as exc:
+        ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
+        access_policy.register_denied(ctx, "face_not_detected")
+        event_id = db_service.log_access(body.nfc_uid, "denied", "nfc+face", "face_not_detected", user_id=subject["id"], direction=direction.value, door_id=body.door_id)
+        admin_auth_service.audit(admin_id, "access.face_not_detected", str(event_id), str(exc))
         raise HTTPException(status_code=422, detail={"code": "face_not_detected", "message": "Не удалось выделить ровно одно лицо в кадре. Проход запрещён."}) from exc
 
     from app.services.face_recognition_service import face_recognition_service as face_engine
