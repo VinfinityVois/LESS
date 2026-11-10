@@ -272,8 +272,21 @@ async def verify_liveness(body: LivenessVerifyRequest, request: Request):
 
 
 def require_biometric_encryption_key():
-    if settings.SECRET_KEY == "change-me-in-production-use-openssl-rand-hex-32":
-        raise HTTPException(status_code=503, detail="Перед сохранением фото и биометрии задайте уникальный SECRET_KEY в backend/.env.")
+    key = (settings.SECRET_KEY or "").strip()
+    placeholder = not key or len(key) < 64 or any(
+        marker in key.lower()
+        for marker in ("change-me", "replace-with", "example", "placeholder", "your-secret")
+    )
+    if placeholder:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Биометрическое хранилище заблокировано: SECRET_KEY отсутствует или слишком слабый. "
+                "Создайте ключ командой: python -c \"import secrets; print(secrets.token_hex(32))\". "
+                "Добавьте SECRET_KEY=... в backend/.env и перезапустите backend. "
+                "Не меняйте ключ после сохранения биометрии: без прежнего ключа зашифрованные данные не восстановить."
+            ),
+        )
 
 
 class UserCreateRequest(BaseModel):
