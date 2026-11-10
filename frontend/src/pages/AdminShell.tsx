@@ -40,7 +40,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const [guestMsg, setGuestMsg] = useState("");
   const [guestBusy, setGuestBusy] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
-  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(true);
 
   useEffect(() => {
     void refresh();
