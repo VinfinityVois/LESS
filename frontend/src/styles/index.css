@@ -185,3 +185,24 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .guest-pass-empty strong{color:#c6d6d7;font-size:11px}
 .guest-pass-empty span{max-width:420px;font-size:9px;line-height:1.5}
 @media(max-width:850px){.guest-page{height:auto;overflow:visible}.guest-pass-grid{overflow:visible}.guest-create-fields{grid-template-columns:1fr}}
+
+
+.guest-pass-state.is-active{color:#83d8a6;background:rgba(131,216,166,.09)}
+.guest-pass-state.is-inactive{color:#d5a16f;background:rgba(213,161,111,.09)}
+.guest-pass-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:13px}
+.guest-pass-actions button{border:1px solid var(--line-strong);border-radius:6px;padding:7px 5px;background:rgba(255,255,255,.025);color:#aebfc1;font-size:8px;cursor:pointer}
+.guest-pass-actions button:hover{border-color:var(--cyan);color:var(--cyan)}
+.guest-pass-actions button:disabled{opacity:.45;cursor:wait}
+.camera-display__viewport.is-events{display:block;overflow-y:auto;padding:12px;box-sizing:border-box}
+.display-events{width:min(100%,620px);margin:0 auto;display:flex;flex-direction:column;gap:9px}
+.display-event{display:grid;grid-template-columns:1fr auto;gap:5px 12px;padding:13px;border:1px solid rgba(97,216,208,.18);border-radius:9px;background:rgba(16,28,36,.94)}
+.display-event span{color:#80a1a5;font:10px var(--mono)}
+.display-event strong{grid-column:1/-1;color:#e0eded;font-size:13px}
+.display-event b{color:#d5a16f;font:9px var(--mono);text-align:right}
+.display-event b.is-granted{color:#83d8a6}
+.display-event small{grid-column:1/-1;color:#82969b;font-size:10px}
+.display-events-empty{height:60vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:#82969b}
+.display-events-empty strong{font-size:13px}
+.camera-display__viewport.is-video{overflow:hidden}
+.camera-display__viewport.is-video>div{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.camera-display__viewport.is-video img{width:auto!important;height:100%!important;max-width:100%;aspect-ratio:9/16;object-fit:cover!important}
