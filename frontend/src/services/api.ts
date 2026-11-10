@@ -140,6 +140,7 @@ export interface User {
   face_enrolled?: number;
   created_at: string;
   updated_at?: string;
+  deleted_at?: string | null;
   last_entry?: string | null;
   last_exit?: string | null;
   total_events?: number;
