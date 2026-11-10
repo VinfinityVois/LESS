@@ -192,7 +192,8 @@ class LivenessService:
                                 "closed_to_open_ratio": round(closed_ratio, 4),
                                 "opened_before": opened_before,
                                 "reopened_after": reopened_after,
-                                "frame_count": len(ears),\n                                "blink_score": round(max(0.0, min(100.0, (0.84 - closed_ratio) / 0.24 * 100.0)), 1),
+                                "frame_count": len(ears),
+                                "blink_score": round(max(0.0, min(100.0, (0.84 - closed_ratio) / 0.24 * 100.0)), 1),
                             } if action == "blink" else {"frame_count": len(samples)}),
                             "results": results,
                         }
