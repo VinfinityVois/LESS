@@ -128,6 +128,7 @@ class TamperEvidentAudit:
                 healthy = True
             except Exception as exc:
                 healthy = False
+                self._healthy = False
                 return {"valid": False, "records": sequence, "error": str(exc)}
             if healthy:
                 self._sequence, self._last_hash, self._healthy = sequence, previous, True
