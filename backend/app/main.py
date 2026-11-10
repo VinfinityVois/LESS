@@ -31,6 +31,7 @@ from app.services.access_policy import (
     AccessContext,
     Direction,
     AccessDecision,
+    AccessResult,
 )
 
 
@@ -532,6 +533,20 @@ class GuestCodeCreate(BaseModel):
     door_ids: Optional[list] = None
 
 
+async def request_hardware_unlock(door_id: str) -> dict:
+    command = serial_service.send_secure_command("unlock", door_id, duration_ms=3000)
+    ack = await asyncio.to_thread(
+        serial_service.wait_for_ack,
+        command["command_id"],
+        float(getattr(settings, "CONTROLLER_ACK_TIMEOUT", 4.0)),
+    )
+    if not ack:
+        raise TimeoutError("controller_ack_timeout")
+    if not ack.get("accepted") or ack.get("lock_state") != "unlocked" or ack.get("door_state") not in {"closed", "open"}:
+        raise RuntimeError("controller_ack_invalid")
+    return ack
+
+
 @app.post("/api/access/check")
 async def access_check(body: AccessCheckRequest):
     direction = Direction.IN if body.direction == "in" else Direction.OUT
@@ -600,16 +615,26 @@ async def access_check(body: AccessCheckRequest):
         )
     else:
         result = access_policy.evaluate(ctx)
+    hardware_ack = None
+    if result.decision == AccessDecision.ALLOW:
+        try:
+            hardware_ack = await request_hardware_unlock(body.door_id)
+        except Exception as exc:
+            access_policy.register_denied(ctx, "hardware_controller_failure")
+            code = "hardware_ack_invalid" if str(exc) == "controller_ack_invalid" else "hardware_controller_unavailable"
+            message = "Контроллер не подтвердил физическое состояние двери. Проход запрещён."
+            result = AccessResult(AccessDecision.DENY, message, code)
+            logger.warning(f"Hardware unlock fail-closed: {exc}")
     event = "granted" if result.decision == AccessDecision.ALLOW else "denied"
     audit_identity = body.nfc_uid or (
         "GUEST:" + hashlib.sha256(body.guest_code.strip().upper().encode("utf-8")).hexdigest()[:12]
         if body.guest_code else ""
     )
-    db_service.log_access(
+    event_id = db_service.log_access(
         nfc_uid=audit_identity,
         event_type=event,
         factor_used=body.factor,
-        reason=f"{result.code}: {result.reason}",
+        reason=f"{result.code}: {result.reason}; controller={hardware_ack or 'not_confirmed'}",
         user_id=resolved_user_id,
         direction=direction.value,
         door_id=body.door_id,
@@ -618,6 +643,9 @@ async def access_check(body: AccessCheckRequest):
         "decision": result.decision.value,
         "reason": result.reason,
         "code": result.code,
+        "event_id": event_id,
+        "hardware": {"confirmed": bool(hardware_ack), "lock_state": (hardware_ack or {}).get("lock_state", "unknown"),
+                     "door_state": (hardware_ack or {}).get("door_state", "unknown")},
         "details": result.details,
     }
 
