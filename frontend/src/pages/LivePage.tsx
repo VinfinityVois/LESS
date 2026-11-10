@@ -230,7 +230,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void runTestCard()} disabled={testCardBusy} title="Временная виртуальная карта: тестовая запись, без проверки личности и без управления замком"><Nfc size={14}/>{testCardBusy ? "Запись…" : "Виртуальная карта · ТЕСТ"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
         {displayMessage && <p className="users-message" role="status">{displayMessage}</p>}
         <div className={`camera-frame ${externalDisplayActive ? "camera-frame--relayed" : ""}`}>
-          {externalDisplayMode !== "video" && <VideoFeed />}
+          <VideoFeed onFrame={onCameraFrame} hidden={externalDisplayMode === "video"} />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
@@ -255,7 +255,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ИДЕНТИФИКАЦИЯ</span><h2>Факторы проверки</h2></div><span className="standby-pill">STANDBY</span></div>
           <div className="factor-list">
             <Factor icon={Nfc} label="NFC-карта / браслет" detail="Ожидание UID от считывателя" state={serialOk ? "ready" : "waiting"} />
-            <Factor icon={ScanFace} label="Распознавание лица" detail={`Зарегистрированных профилей: ${registeredFaces}. Сравнение личности при проходе ещё не подключено.`} state="stub" />
+            <Factor icon={ScanFace} label="Распознавание лица" detail={"SFace 128D · " + registeredFaces + " активных шаблонов. Проверка запускается после считывания карты."} state={registeredFaces ? "ready" : "waiting"} />
             <Factor icon={LockKeyhole} label="PIN-код" detail="Второй фактор подтверждения" state="waiting" />
             <Factor icon={Fingerprint} label="Отпечаток пальца" detail="Временная программная заглушка" state="stub" />
           </div>
@@ -264,8 +264,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
         <section className="surface-panel subject-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ТЕКУЩАЯ СЕССИЯ</span><h2>Карточка субъекта</h2></div><UserRoundSearch size={18} className="muted-icon" /></div>
-          <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>Субъект не определён</strong><span>Данные появятся после чтения карты и успешной идентификации.</span></div>
-          <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>НЕ НАЧАТА</b></div>
+          {currentSubject ? <div className="subject-identified">{currentSubject.photo_data_url && <img src={currentSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{currentSubject.name}</strong><span>{currentSubject.position || "Должность не указана"}</span><small>ID · {currentSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>Субъект не определён</strong><span>Поднесите карту к считывателю для запуска проверки.</span></div>}
+          <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{faceChallenge ? "ПРОВЕРКА ЛИЦА" : accessResult ? (accessResult.decision === "allow" ? "ПОДТВЕРЖДЁН" : "ОТКАЗ") : "НЕ НАЧАТА"}</b></div>
         </section>
 
         <section className="operator-warning">
