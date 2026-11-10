@@ -293,6 +293,7 @@ export async function checkFaceAccess(body: {
   return data as {
     decision: "allow" | "deny"; code: string; reason: string; similarity?: number;
     liveness?: string; event_id?: number;
+    hardware?: { confirmed: boolean; lock_state: string; door_state: string };
     subject?: { id: number; name: string; position: string; photo_data_url?: string | null };
   };
 }
