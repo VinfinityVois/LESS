@@ -275,7 +275,7 @@ export async function checkFaceAccess(body: {
   nfc_uid: string; challenge_id: string; door_id?: string; direction?: string;
   evidence: { action: string; frames: string[] }[];
 }) {
-  const { data } = await api.post("/api/access/check-face", body);
+  const { data } = await api.post("/api/access/check-face", body, { timeout: 90000 });
   return data as {
     decision: "allow" | "deny"; code: string; reason: string; similarity?: number;
     liveness?: string; event_id?: number;
