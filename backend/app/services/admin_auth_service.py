@@ -130,7 +130,7 @@ class AdminAuthService:
         self.audit(user["id"], "bootstrap.created", user["username"], "Создан первый суперадминистратор")
         return user
 
-    def login(self, username: str, password: str) -> Optional[dict[str, Any]]:
+    def login(self, username: str, password: str, remember_me: bool = False) -> Optional[dict[str, Any]]:
         username, now = username.strip(), self._now()
         now_s = self._iso(now)
         with self._conn() as conn:
@@ -158,7 +158,7 @@ class AdminAuthService:
                 return None
             conn.execute("DELETE FROM admin_login_attempts WHERE username=?", (username,))
             token = secrets.token_urlsafe(48)
-            expires = now + timedelta(hours=self.SESSION_HOURS)
+            expires = now + (timedelta(hours=1) if remember_me else timedelta(hours=self.SESSION_HOURS))
             conn.execute("INSERT INTO admin_sessions(admin_id,token_hash,created_at,expires_at) VALUES(?,?,?,?)",
                          (row["id"], self._token_hash(token), now_s, self._iso(expires)))
             user = self._public(row)
