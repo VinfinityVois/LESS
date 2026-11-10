@@ -2,11 +2,10 @@ import { useEffect, useState } from "react";
 import {
   Video, History, AlertTriangle, Users, BadgeCheck, SlidersHorizontal,
   RadioTower, Server, BrainCircuit, Nfc, Clock3, Bell, ShieldCheck,
-  ChevronRight, Activity, Fingerprint, Camera, Menu, PanelLeftClose, PanelLeftOpen,
+  ChevronRight, Activity, Fingerprint, Camera, Menu, PanelLeftClose, PanelLeftOpen, LogOut,
 } from "lucide-react";
 import { useSystemStore } from "../stores/systemStore";
-import { ru } from "../i18n/ru";
-import type { User as UserType } from "../services/api";
+import type { AdminAccount, User as UserType } from "../services/api";
 import { createGuestCode } from "../services/api";
 import LivePage from "./LivePage";
 import UsersPage from "./UsersPage";
@@ -32,7 +31,7 @@ function DeviceState({ icon: Icon, label, value, ok }: { icon: typeof Camera; la
   return <div className="device-state"><span className={`device-state__icon ${ok ? "is-ok" : "is-off"}`}><Icon size={14} /></span><span className="device-state__label">{label}</span><span className={`device-state__value ${ok ? "is-ok" : "is-off"}`}>{value}</span></div>;
 }
 
-export default function AdminShell() {
+export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; onLogout: () => void }) {
   const { status, backendOnline, refresh } = useSystemStore();
   const [nav, setNav] = useState<NavId>("live");
   const [clock, setClock] = useState("");
@@ -101,7 +100,7 @@ export default function AdminShell() {
     </aside>
     {mobileNav && <button className="mobile-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
     <section className="less-workspace">
-      <header className="topbar"><div className="topbar__left"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Открыть меню"><Menu size={19} /></button><div className="breadcrumbs"><span>LESS CONTROL</span><ChevronRight size={13} /><strong>{pageTitles[nav]}</strong></div></div><div className="topbar__right"><div className="system-mode"><span className="system-mode__dot" /> СИСТЕМА {backendOnline ? "АКТИВНА" : "НЕТ СВЯЗИ"}</div><div className="topbar-clock"><Clock3 size={15} /><strong>{clock || "--:--:--"}</strong><span>{dateLabel}</span></div><div className="topbar-icon" aria-label="Уведомления не подключены" title="Сервис уведомлений пока не подключён"><Bell size={17} /></div><div className="operator-chip"><div className="operator-avatar">ОП</div><div><strong>{ru.operator}</strong><span>{ru.operatorRole}</span></div></div></div></header>
+      <header className="topbar"><div className="topbar__left"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Открыть меню"><Menu size={19} /></button><div className="breadcrumbs"><span>LESS CONTROL</span><ChevronRight size={13} /><strong>{pageTitles[nav]}</strong></div></div><div className="topbar__right"><div className="system-mode"><span className="system-mode__dot" /> СИСТЕМА {backendOnline ? "АКТИВНА" : "НЕТ СВЯЗИ"}</div><div className="topbar-clock"><Clock3 size={15} /><strong>{clock || "--:--:--"}</strong><span>{dateLabel}</span></div><div className="topbar-icon" aria-label="Уведомления не подключены" title="Сервис уведомлений пока не подключён"><Bell size={17} /></div><div className="operator-chip"><div className="operator-avatar">{admin.display_name.slice(0, 2).toUpperCase()}</div><div><strong>{admin.display_name || admin.username}</strong><span>{admin.role === "superadmin" ? "Суперадминистратор" : admin.role === "admin" ? "Администратор" : "Охрана · просмотр"}</span></div><button type="button" className="operator-logout" onClick={onLogout} title="Выйти из учётной записи" aria-label="Выйти"><LogOut size={16}/></button></div></div></header>
       <div className="system-strip"><DeviceState icon={Server} label="BACKEND" value={backendOnline ? "ONLINE" : "OFFLINE"} ok={backendOnline} /><DeviceState icon={Camera} label="КАМЕРА" value={cameraOk ? "ONLINE" : status?.camera === "stopped" ? "STOPPED" : "НЕТ СИГНАЛА"} ok={cameraOk} /><DeviceState icon={Nfc} label="NFC / СКУД" value={serialOk ? "ONLINE" : status?.serial === "disconnected" ? "DISCONNECTED" : "ОЖИДАНИЕ"} ok={serialOk} /><DeviceState icon={Activity} label="БАЗА ДАННЫХ" value={dbOk ? "ONLINE" : "НЕ ПРОВЕРЕНА"} ok={dbOk} /><div className="system-strip__ai"><BrainCircuit size={15} /><span>AI ANALYTICS</span><b className={aiOk ? "is-ready" : "is-waiting"}>{aiOk ? "ДОСТУПЕН" : status?.ai ? status.ai.toUpperCase() : "НЕ ПРОВЕРЕН"}</b></div></div>
       <main className="workspace-content">
         {nav === "live" && <LivePage status={status} />}
