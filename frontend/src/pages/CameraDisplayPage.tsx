@@ -11,11 +11,26 @@ export default function CameraDisplayPage() {
     const channel = new BroadcastChannel("less-external-display");
     channel.onmessage = (event) => { if (event.data?.type === "set-mode" && (event.data.mode === "video" || event.data.mode === "events")) setMode(event.data.mode); };
     const refresh = () => getLogs(30).then(setLogs).catch(() => setLogs([]));
+    const notifyClosed = () => {
+      channel.postMessage({ type: "closed" });
+      localStorage.removeItem("less-external-display-active");
+      localStorage.removeItem("less-external-display-mode");
+    };
+    window.addEventListener("beforeunload", notifyClosed);
     void refresh();
     const timer = window.setInterval(refresh, 3000);
-    return () => { channel.postMessage({ type: "closed" }); localStorage.removeItem("less-external-display-active"); localStorage.removeItem("less-external-display-mode"); channel.close(); window.clearInterval(timer); };
+    return () => {
+      window.removeEventListener("beforeunload", notifyClosed);
+      channel.close();
+      window.clearInterval(timer);
+    };
   }, []);
   const close = async () => {
+    const channel = new BroadcastChannel("less-external-display");
+    channel.postMessage({ type: "closed" });
+    channel.close();
+    localStorage.removeItem("less-external-display-active");
+    localStorage.removeItem("less-external-display-mode");
     try { await getCurrentWindow().close(); }
     catch { window.close(); }
   };
