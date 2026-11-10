@@ -91,7 +91,7 @@ export async function createUser(body: {
 
 export async function updateUser(
   id: number,
-  body: Partial<{ name: string; position: string; nfc_uid: string; pin: string; is_active: boolean }>
+  body: Partial<{ name: string; position: string; nfc_uid: string; pin: string; is_active: boolean; photo_data_url: string }>
 ) {
   const { data } = await api.patch(`/api/users/${id}`, body);
   return data;
