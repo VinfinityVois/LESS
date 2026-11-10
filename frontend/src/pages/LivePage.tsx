@@ -23,7 +23,26 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
-  const [externalDisplayActive, setExternalDisplayActive] = useState(() => localStorage.getItem("less-external-display-active") === "1");
+  const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
+    const saved = localStorage.getItem("less-external-display-mode");
+    return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
+  });
+  const externalDisplayActive = externalDisplayMode !== null;
+  useEffect(() => {
+    const channel = new BroadcastChannel("less-external-display");
+    channel.onmessage = (event) => {
+      if (event.data?.type === "set-mode" && (event.data.mode === "video" || event.data.mode === "events")) {
+        setExternalDisplayMode(event.data.mode);
+        localStorage.setItem("less-external-display-active", "1");
+        localStorage.setItem("less-external-display-mode", event.data.mode);
+      } else if (event.data?.type === "closed") {
+        setExternalDisplayMode(null);
+        localStorage.removeItem("less-external-display-active");
+        localStorage.removeItem("less-external-display-mode");
+      }
+    };
+    return () => channel.close();
+  }, []);
   const load = useCallback(async () => {
     try { setLogs(await getLogs(40)); } catch { setLogs([]); }
   }, []);
@@ -42,7 +61,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     try {
       await openCameraOnExternalDisplay(mode);
       localStorage.setItem("less-external-display-active", "1");
-      setExternalDisplayActive(true);
+      setExternalDisplayMode(mode);
+      localStorage.setItem("less-external-display-mode", mode);
       setDisplayMessage(`На дополнительном мониторе открыт режим: ${mode === "video" ? "видео" : "события"}.`);
     } catch (error) {
       setDisplayMessage(error instanceof Error ? error.message : "Не удалось открыть дополнительный экран.");
@@ -51,7 +71,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     }
   };
   const closeExternal = async () => {
-    try { await closeExternalDisplay(); } finally { localStorage.removeItem("less-external-display-active"); setExternalDisplayActive(false); }
+    try { await closeExternalDisplay(); } finally { localStorage.removeItem("less-external-display-active"); localStorage.removeItem("less-external-display-mode"); setExternalDisplayMode(null); }
   };
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
@@ -67,18 +87,20 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
       <div className="post-status"><span className="post-status__dot" /><div><strong>ПОСТ НАБЛЮДЕНИЯ</strong><small>РЕЖИМ ОЖИДАНИЯ</small></div></div>
     </div>
 
-    <div className={`live-grid ${externalDisplayActive ? "live-grid--external" : ""}`}>
+    <div className={`live-grid ${externalDisplayMode ? `live-grid--external live-grid--external-${externalDisplayMode}` : ""}`}>
       <section className="camera-column">
+        <div className="camera-monitor-block">
         <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
         <div className={`camera-frame ${externalDisplayActive ? "camera-frame--relayed" : ""}`}>
-          <VideoFeed />
+          {externalDisplayMode !== "video" && <VideoFeed />}
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
-        {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>Внешний экран активен. Видеопоток остаётся подключённым при переключении между видео и событиями.</span></div></div>}
+        {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>Внешний экран показывает выбранный режим; основное окно переключено на противоположный блок.</span></div></div>}
         {<div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
+        </div>
         <section className="events-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ПОСЛЕДНЯЯ АКТИВНОСТЬ</span><h2>События доступа</h2></div><span className="event-count">{logs.length} ЗАПИСЕЙ</span></div>
           <div className="events-table">
