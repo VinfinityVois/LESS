@@ -537,3 +537,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .subject-identified strong{color:#e7f2f1;font-size:15px}
 .subject-identified span,.subject-identified small{color:#91a7aa;font-size:12px}
 @media(max-width:760px){.face-access-challenge{align-items:stretch;flex-direction:column}.face-access-actions{justify-content:flex-end}}
+
+/* Subject identity remains visible during the full NFC + face + controller flow. */
+.subject-placeholder__photo{width:32px;height:36px;object-fit:cover;border-radius:6px;border:1px solid rgba(97,216,208,.38)}
+.subject-identified.is-verifying{border-bottom:1px solid rgba(97,216,208,.22);background:linear-gradient(90deg,rgba(97,216,208,.07),transparent);padding-left:8px}
+.subject-identified.is-verifying img{border-color:rgba(97,216,208,.55);box-shadow:0 0 16px rgba(97,216,208,.12)}
+.subject-meta b{max-width:60%;text-align:right}
