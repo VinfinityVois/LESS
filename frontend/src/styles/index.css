@@ -225,7 +225,7 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .live-grid{align-items:stretch}
 .camera-column,.verification-column{min-width:0}
 .camera-frame{min-height:clamp(250px,31vw,440px)}
-.camera-frame--relayed{opacity:.36;filter:saturate(.65)}
+.camera-frame--relayed{opacity:1;filter:none}
 .external-display-notice{margin-top:9px;min-height:54px;padding:9px 12px}
 .events-panel{min-width:0}
 .events-table{max-height:250px;overflow-y:auto;overscroll-behavior:contain}
