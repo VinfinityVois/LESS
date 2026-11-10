@@ -145,7 +145,15 @@ class LivenessService:
                         # fall between frames. Keep both an open-eye and closed-eye
                         # observation; a small noisy landmark fluctuation is not enough.
                         peak, trough = max(ears), min(ears)
-                        passed = peak > 0.20 and trough < 0.18 and (peak - trough) > 0.045
+                        peak_index, trough_index = ears.index(peak), ears.index(trough)
+                        # EAR depends on camera scale and face geometry. Check the
+                        # temporal open -> closed -> open pattern relative to this
+                        # subject's own open-eye baseline, not fixed absolute limits.
+                        open_level = max(0.14, peak * 0.78)
+                        opened_before = any(value >= open_level for value in ears[:trough_index])
+                        reopened_after = any(value >= open_level for value in ears[trough_index + 1:])
+                        closed_ratio = trough / max(peak, 1e-6)
+                        passed = peak > 0.14 and closed_ratio < 0.72 and opened_before and reopened_after and peak_index != trough_index
                         metric = round(peak - trough, 4)
                     elif action == "turn_head":
                         yaws = [self._yaw(p["landmarks"]) for p in samples]
