@@ -43,7 +43,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
       await openCameraOnExternalDisplay(mode);
       localStorage.setItem("less-external-display-active", "1");
       setExternalDisplayActive(true);
-      setDisplayMessage("На дополнительном мониторе открыт режим: ${mode === "video" ? "видео" : "события"}.");
+      setDisplayMessage(`На дополнительном мониторе открыт режим: ${mode === "video" ? "видео" : "события"}.`);
     } catch (error) {
       setDisplayMessage(error instanceof Error ? error.message : "Не удалось открыть дополнительный экран.");
     } finally {
