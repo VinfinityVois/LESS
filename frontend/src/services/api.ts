@@ -19,6 +19,8 @@ export interface User {
   nfc_uid: string;
   name: string;
   position?: string;
+  photo_available?: boolean;
+  photo_data_url?: string | null;
   is_active: number;
   face_enrolled?: number;
   created_at: string;
@@ -84,6 +86,7 @@ export async function createUser(body: {
   position?: string;
   pin?: string;
   is_active?: boolean;
+  photo_data_url?: string;
 }) {
   const { data } = await api.post("/api/users", body);
   return data;
@@ -91,7 +94,7 @@ export async function createUser(body: {
 
 export async function updateUser(
   id: number,
-  body: Partial<{ name: string; position: string; nfc_uid: string; pin: string; is_active: boolean }>
+  body: Partial<{ name: string; position: string; nfc_uid: string; pin: string; is_active: boolean; photo_data_url: string }>
 ) {
   const { data } = await api.patch(`/api/users/${id}`, body);
   return data;
@@ -102,8 +105,8 @@ export async function deleteUser(id: number, hard = false) {
   return data;
 }
 
-export async function faceEnroll(userId: number) {
-  const { data } = await api.post(`/api/users/${userId}/face-enroll`);
+export async function faceEnroll(userId: number, body: { front_landmarks: number[][]; profile_landmarks: number[][]; front_photo: string; profile_photo: string }) {
+  const { data } = await api.post(`/api/users/${userId}/face-enroll`, body);
   return data;
 }
 
