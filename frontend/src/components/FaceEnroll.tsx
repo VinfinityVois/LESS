@@ -210,8 +210,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
       const frames: string[] = [];
-      await wait(350);
-      for (let i = 0; i < 5; i++) {
+      // Capture a longer sequence so short actions (especially a blink) are
+      // represented by multiple frames rather than missed between samples.
+      await wait(200);
+      for (let i = 0; i < 8; i++) {
         const video = videoRef.current;
         if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
         const frameCanvas = document.createElement("canvas");
@@ -222,7 +224,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
         ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
         frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
-        await wait(180);
+        await wait(220);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
       setChallengeEvidence(nextEvidence);
@@ -235,7 +237,13 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         setStage("front");
       }
     } catch (e: any) {
-      setCameraError(String(e?.response?.data?.detail || e?.message || "Проверка присутствия не пройдена."));
+      const detail = e?.response?.data?.detail;
+      const diagnostic = typeof detail === "string"
+        ? detail
+        : detail?.message || (detail?.failed_action
+          ? `Не удалось подтвердить действие «${detail.failed_action}». Повторите его медленнее, удерживая лицо в кадре.`
+          : e?.message);
+      setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
       setStage("error");
     } finally {
       setChallengeBusy(false);
