@@ -26,9 +26,18 @@ class LivenessService:
         self._proofs: dict[str, dict[str, Any]] = {}
 
     def create(self, admin_id: int, subject_id: int) -> dict[str, Any]:
+        now = datetime.now(timezone.utc)
+        self._challenges = {
+            key: value for key, value in self._challenges.items()
+            if not value["used"] and value["expires_at"] > now
+        }
+        self._proofs = {
+            key: value for key, value in self._proofs.items()
+            if value["expires_at"] > now
+        }
         challenge_id = secrets.token_urlsafe(32)
         actions = list(secrets.SystemRandom().sample(self.ACTIONS, 2))
-        expires = datetime.now(timezone.utc) + timedelta(seconds=self.TTL_SECONDS)
+        expires = now + timedelta(seconds=self.TTL_SECONDS)
         self._challenges[challenge_id] = {
             "admin_id": admin_id, "subject_id": subject_id,
             "actions": actions, "expires_at": expires, "used": False,
