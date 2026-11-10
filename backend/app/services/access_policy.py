@@ -125,6 +125,10 @@ class AccessPolicyService:
             r = self._check_dual_control(door, ctx)
             if r.decision == AccessDecision.DENY:
                 return r
+        if ctx.guest_code:
+            guest = db_service.get_guest_pass_by_code(ctx.guest_code)
+            if not guest or not db_service.consume_guest_pass(guest["id"]):
+                return AccessResult(AccessDecision.DENY, "Гостевой пропуск уже использован или отключён", "guest_unavailable")
         self._on_success(ctx, door)
         return AccessResult(
             AccessDecision.ALLOW, "Доступ разрешён", "ok",
@@ -225,9 +229,7 @@ class AccessPolicyService:
             return AccessResult(AccessDecision.DENY, "Лимит проходов исчерпан", "guest_exhausted")
         if ctx.door_id not in meta["door_ids"]:
             return AccessResult(AccessDecision.DENY, "Код не для этой двери", "guest_wrong_door")
-        if not db_service.consume_guest_pass(meta["id"]):
-            return AccessResult(AccessDecision.DENY, "Пропуск уже использован или отключён", "guest_unavailable")
-        return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"] - 1})
+        return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"]})
 
     def _on_success(self, ctx: AccessContext, door: DoorPolicy) -> None:
         if ctx.user_id is not None and door.anti_passback:
