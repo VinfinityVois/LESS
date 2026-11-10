@@ -160,7 +160,7 @@ class DBService:
             return None
         user = dict(row)
         user["is_active"] = int(user.get("is_active") or 0)
-        user["face_enrolled"] = int(bool(user.get("face_vector")) or bool(user.get("face_embedding")) or bool(user.get("face_profile_embedding")))
+        user["face_enrolled"] = int(bool(user.get("face_vector")))
         user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
         for private_field in ("face_embedding", "face_profile_embedding", "face_vector", "face_profile_vector", "pin_hash", "fingerprint_hash"):
             user.pop(private_field, None)
