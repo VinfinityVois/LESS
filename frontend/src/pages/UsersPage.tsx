@@ -107,6 +107,7 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
       <div className="users-detail-name"><span className="eyebrow">ПРОФИЛЬ СОТРУДНИКА · ID {selected.id}</span><h1>{selected.name || "Без имени"}</h1><p>{selected.position || "Должность не указана"} · UID {selected.nfc_uid}</p></div>
       <span className={`user-status ${selected.is_active ? "is-active" : "is-blocked"}`}>{statusLabel(selected.is_active)}</span>
     </div>
+    {(selected.photo_data_url || selected.profile_photo_data_url) && <div className="users-biometric-photos">{selected.photo_data_url && <figure><img src={selected.photo_data_url} alt="Фото анфас"/><figcaption>АНФАС · ПРОФИЛЬНОЕ ФОТО</figcaption></figure>}{selected.profile_photo_data_url && <figure><img src={selected.profile_photo_data_url} alt="Фото в профиль"/><figcaption>ПРОФИЛЬ · БИОМЕТРИЧЕСКИЙ КАДР</figcaption></figure>}</div>}
     <div className="users-detail-actions">
       <button className="users-button users-button--primary" onClick={() => onEnroll(selected)}><ScanFace size={15}/> Регистрация биометрии</button>
       <button className="users-button" onClick={() => beginEdit(selected)}><Pencil size={15}/> Редактировать</button>

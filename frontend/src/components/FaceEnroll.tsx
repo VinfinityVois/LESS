@@ -19,6 +19,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const [faceFound, setFaceFound] = useState(false);
   const [yaw, setYaw] = useState(0);
   const [quality, setQuality] = useState(0);
+  const [expression, setExpression] = useState("ОЖИДАНИЕ");
   const [cameraError, setCameraError] = useState("");
   const [modelReady, setModelReady] = useState(false);
   const [shots, setShots] = useState<{front?: Shot; profile?: Shot}>({});
@@ -36,7 +37,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         streamRef.current = stream;
         if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
         const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "GPU" },
+          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "CPU" },
           runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true,
         });
         if (cancelled) { landmarker.close(); return; }
@@ -50,13 +51,19 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
             const face = output.faceLandmarks?.[0];
             if (face?.length) {
               setFaceFound(true);
-              setLandmarks(face.map((p) => ({ x: p.x, y: p.y, z: p.z })));
+              setLandmarks(face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 })));
+              const blend = output.faceBlendshapes?.[0]?.categories || [];
+              const scoreOf = (name: string) => blend.find((item) => item.categoryName === name)?.score || 0;
+              const smile = (scoreOf("mouthSmileLeft") + scoreOf("mouthSmileRight")) / 2;
+              const blink = (scoreOf("eyeBlinkLeft") + scoreOf("eyeBlinkRight")) / 2;
+              const jaw = scoreOf("jawOpen");
+              setExpression(smile > .4 ? "УЛЫБКА" : blink > .5 ? "МОРГАНИЕ" : jaw > .35 ? "РОТ ОТКРЫТ" : "НЕЙТРАЛЬНО");
               const eyeMid = (face[33].x + face[263].x) / 2;
               const noseOffset = (face[1].x - eyeMid) / Math.max(.01, Math.abs(face[263].x - face[33].x));
               const estimate = Math.max(-90, Math.min(90, noseOffset * 110));
               setYaw(estimate);
               setQuality(Math.round(Math.max(0, Math.min(100, 100 - Math.abs(estimate) * .45))));
-            } else { setFaceFound(false); setLandmarks(null); setYaw(0); setQuality(0); }
+            } else { setFaceFound(false); setLandmarks(null); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); }
           }
           rafRef.current = requestAnimationFrame(tick);
         };
@@ -95,7 +102,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const template = landmarks!.map((point) => [
       Number(((point.x - origin.x) / eyeDistance).toFixed(5)),
       Number(((point.y - origin.y) / eyeDistance).toFixed(5)),
-      Number(((point.z - origin.z) / eyeDistance).toFixed(5)),
+      Number((((point.z ?? 0) - (origin.z ?? 0)) / eyeDistance).toFixed(5)),
     ]);
     const shot: Shot = { dataUrl: canvas.toDataURL("image/jpeg", .9), quality: score, label: stage === "front" ? "Анфас" : "Профиль", landmarks: template };
     if (stage === "front") { setShots((s) => ({ ...s, front: shot })); setStage("profile"); }
@@ -105,8 +112,6 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const save = async () => {
     setStage("saving"); setResult("");
     try {
-      // The current backend endpoint accepts a user ID only. It does not accept the captured
-      // image payload, so the UI never claims these local preview frames were persisted.
       const response = await faceEnroll(userId, {
         front_landmarks: shots.front!.landmarks,
         profile_landmarks: shots.profile!.landmarks,
@@ -135,7 +140,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       <><div className="face-stepper"><span className={stage === "front" ? "is-current" : shots.front ? "is-done" : ""}>01 · АНФАС</span><i/><span className={stage === "profile" ? "is-current" : shots.profile ? "is-done" : ""}>02 · ПРОФИЛЬ</span><i/><span className={stage === "review" || stage === "saving" ? "is-current" : ""}>03 · ПРОВЕРКА</span></div>
       {stage === "review" ? <div className="face-review"><div><span>АНФАС</span>{shots.front && <img src={shots.front.dataUrl} alt="Снимок анфас"/>}<b>Качество кадра: {shots.front?.quality}%</b></div><div><span>ПРОФИЛЬ</span>{shots.profile && <img src={shots.profile.dataUrl} alt="Снимок профиля"/>}<b>Качество кадра: {shots.profile?.quality}%</b></div><p>Оценка качества учитывает освещение и контраст. Она не подтверждает личность, liveness или пригодность биометрического шаблона.</p><button className="users-button" onClick={reset}><RotateCcw size={14}/> Переснять</button><button className="users-button users-button--primary" onClick={() => void save()}><ScanFace size={15}/> Отправить запрос backend</button></div> :
       <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}<path d="M500 80V920 M80 500H920" stroke="#65d9d0" strokeOpacity=".25" strokeDasharray="5 9"/></svg><div className="face-camera-label"><Camera size={13}/> LIVE · LOCAL CAMERA</div><div className="face-target"><span>{stage === "front" ? "СМОТРИТЕ ПРЯМО В КАМЕРУ" : "ПОВЕРНИТЕ ГОЛОВУ ВПОЛБОРОТА"}</span></div></div>
-      <div className="face-analysis-grid"><div><span>ОБНАРУЖЕНИЕ</span><b className={faceFound ? "is-good" : ""}>{faceFound ? "ЛИЦО НАЙДЕНО" : "ПОИСК ЛИЦА…"}</b></div><div><span>ПОЗА ГОЛОВЫ</span><b>{faceFound ? `${yaw > 0 ? "+" : ""}${yaw.toFixed(0)}°` : "—"}</b></div><div><span>СООТВЕТСТВИЕ ПОЗЕ</span><b>{faceFound ? `${quality}%` : "—"}</b></div><div><span>МОДЕЛЬ</span><b className={modelReady ? "is-good" : ""}>{modelReady ? "ГОТОВА" : "ЗАГРУЗКА…"}</b></div></div>
+      <div className="face-analysis-grid"><div><span>ОБНАРУЖЕНИЕ</span><b className={faceFound ? "is-good" : ""}>{faceFound ? "ЛИЦО НАЙДЕНО" : "ПОИСК ЛИЦА…"}</b></div><div><span>ПОЗА ГОЛОВЫ</span><b>{faceFound ? `${yaw > 0 ? "+" : ""}${yaw.toFixed(0)}°` : "—"}</b></div><div><span>СООТВЕТСТВИЕ ПОЗЕ</span><b>{faceFound ? `${quality}%` : "—"}</b></div><div><span>МИМИКА</span><b>{expression}</b></div></div>
       <div className="face-guidance">{!modelReady ? "Загружается модель MediaPipe Face Landmarker…" : !faceFound ? "Расположите лицо в центре кадра и обеспечьте равномерное освещение." : !expected ? (stage === "front" ? "Для снимка анфас смотрите прямо в камеру." : "Для профильного кадра поверните голову в сторону примерно на 20–35°.") : "Положение подходит для контрольного снимка."}</div>
       <footer className="face-modal-footer"><button className="users-button" onClick={onCancel}>Отмена</button><button className="users-button users-button--primary" disabled={!canCapture} onClick={capture}><Camera size={15}/> Зафиксировать {stage === "front" ? "анфас" : "профиль"}</button></footer></>}
       {stage === "saving" && <div className="face-saving">Отправка запроса в backend…</div>}</>}
