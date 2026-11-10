@@ -305,7 +305,7 @@ def require_biometric_encryption_key():
         raise HTTPException(
             status_code=503,
             detail=(
-                "Биометрическое хранилище заблокировано: SECRET_KEY отсутствует или слишком слабый. "
+                "Зашифрованное хранилище заблокировано: SECRET_KEY отсутствует или слишком слабый. "
                 "Создайте ключ командой: python -c \"import secrets; print(secrets.token_hex(32))\". "
                 "Добавьте SECRET_KEY=... в backend/.env и перезапустите backend. "
                 "Не меняйте ключ после сохранения биометрии: без прежнего ключа зашифрованные данные не восстановить."
