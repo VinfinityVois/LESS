@@ -31,8 +31,8 @@ export default function LogsPage() {
           {logs.map((l) => (
             <tr key={l.id} className="border-t border-surface-highest/20">
               <td className="p-2 font-mono text-xs text-primary">{fmt(l.created_at)}</td>
-              <td className={`p-2 ${l.event_type === "granted" ? "text-secondary" : "text-error"}`}>
-                {l.event_type}
+              <td className={`p-2 ${l.event_type === "granted" ? "text-secondary" : l.event_type === "simulated" ? "text-amber-300" : "text-error"}`}>
+                {l.event_type === "simulated" ? "ТЕСТ · ВИРТУАЛЬНАЯ КАРТА" : l.event_type === "granted" ? "ДОСТУП РАЗРЕШЁН" : "ОТКАЗ"}
               </td>
               <td className="p-2 font-mono text-xs">{l.nfc_uid}</td>
               <td className="p-2 text-xs text-[#bcc9cd] truncate max-w-xs">{l.reason}</td>
