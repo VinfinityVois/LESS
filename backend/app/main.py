@@ -285,6 +285,13 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
 @app.post("/api/biometrics/liveness/verify")
 async def verify_liveness(body: LivenessVerifyRequest, request: Request):
     result = liveness_service.verify(body.challenge_id, request.state.admin["id"], body.user_id, [item.model_dump() for item in body.evidence])
+    action_summary = ",".join(f"{item.get('action')}:{item.get('signal_delta')}" for item in result.get("results", []))
+    admin_auth_service.audit(
+        request.state.admin["id"],
+        "biometric.liveness_verified" if result.get("verified") else "biometric.liveness_failed",
+        str(body.user_id),
+        f"reason={result.get('reason', 'ok')}; samples={action_summary}",
+    )
     if not result.get("verified"):
         reason = result.get("reason", "Проверка присутствия не пройдена.")
         action = result.get("failed_action")
