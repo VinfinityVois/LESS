@@ -75,6 +75,11 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   };
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
+  const unknownIdentity = logs.find((log) => {
+    const reason = log.reason || "";
+    const age = Date.now() - new Date(log.created_at).getTime();
+    return /user_not_found|identity_mismatch/.test(reason) && age >= 0 && age < 5 * 60 * 1000;
+  });
 
   return <div className="live-dashboard">
     <div className="page-heading live-heading">
@@ -97,6 +102,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
+        {unknownIdentity && <div className="live-identity-warning" role="alert"><CircleAlert size={17}/><div><strong>НЕИЗВЕСТНЫЙ ИЛИ НЕСОВПАДАЮЩИЙ СУБЪЕКТ</strong><span>{unknownIdentity.reason?.includes("identity_mismatch") ? "UID карты не соответствует карточке сотрудника." : "Карта не привязана к действующему сотруднику."} Проход запрещён. UID: {unknownIdentity.nfc_uid || "не указан"}.</span></div></div>}
         {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>{externalDisplayMode === "video" ? "Видеоканал выведен на дополнительный монитор" : "Лента событий выведена на дополнительный монитор"}</strong><span>{externalDisplayMode === "video" ? "Основное окно показывает журнал доступа на всю рабочую область." : "Основное окно сохраняет видеоканал и увеличивает область наблюдения."}</span></div></div>}
         {<div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
