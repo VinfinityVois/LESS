@@ -234,6 +234,11 @@ export async function faceEnroll(userId: number, body: { front_landmarks: number
   return data;
 }
 
+export async function simulateTestCard(body: { label?: string; door_id?: string; direction?: "in" | "out" }) {
+  const { data } = await api.post("/api/access/test-card", body);
+  return data as { success: boolean; simulation: boolean; event_id: number; message: string };
+}
+
 export async function accessCheck(body: {
   nfc_uid?: string;
   user_id?: number;
