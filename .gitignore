@@ -54,3 +54,6 @@ backend/logs/
 
 # Tauri
 frontend/src-tauri/WixTools/
+
+# Downloaded ML model assets (install with backend/scripts/download_models.py)
+backend/models/*.task
