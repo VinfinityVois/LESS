@@ -38,3 +38,8 @@ export async function openCameraOnExternalDisplay(mode: "video" | "events" = "vi
     void display.once("tauri://error", (event) => reject(new Error(String(event.payload || "Не удалось открыть окно камеры."))));
   });
 }
+
+export async function closeExternalDisplay(): Promise<void> {
+  const display = await WebviewWindow.getByLabel("less-camera-display");
+  if (display) await display.close();
+}
