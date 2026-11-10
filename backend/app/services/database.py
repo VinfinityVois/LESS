@@ -40,8 +40,18 @@ def _apply_key(conn, key: str) -> None:
     conn.execute("PRAGMA busy_timeout = 10000")
 
 
+class ClosingConnection(sqlite3.Connection):
+    """Close connections when used in a with-statement."""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
 def _open_cipher(path: Path, key: str):
-    conn = sqlite3.connect(str(path), timeout=10)
+    conn = sqlite3.connect(str(path), timeout=10, factory=ClosingConnection)
     conn.row_factory = sqlite3.Row
     try:
         _apply_key(conn, key)
@@ -96,6 +106,12 @@ def ensure_encrypted_database(db_path: Path | str, secret_key: str) -> None:
 
     # Plain SQLite detected. Do not modify it until the encrypted export passes
     # both SQLCipher key verification and SQLite integrity_check.
+    lock_path = path.with_name(path.name + ".migration.lock")
+    try:
+        lock_fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise RuntimeError("Обнаружена другая миграция БД. Убедитесь, что backend не запущен в другом процессе.") from exc
+
     temp_path = path.with_name(path.name + ".sqlcipher-migration.tmp")
     backup_path = path.with_name(path.name + ".pre-encryption-" + time.strftime("%Y%m%d-%H%M%S") + ".sqlcipher")
     backup_temp = backup_path.with_name(backup_path.name + ".tmp")
@@ -153,3 +169,9 @@ def ensure_encrypted_database(db_path: Path | str, secret_key: str) -> None:
             "Миграция SQLite → SQLCipher не завершена. Исходная база сохранена; "
             "проверьте свободное место, остановку backend и верность SECRET_KEY."
         ) from exc
+    finally:
+        os.close(lock_fd)
+        try:
+            lock_path.unlink()
+        except FileNotFoundError:
+            pass
