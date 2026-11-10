@@ -447,22 +447,26 @@ async def access_check(body: AccessCheckRequest):
     resolved_user = None
     identity_error = None
     if body.user_id is not None:
-        if not body.nfc_uid and not body.guest_code:
-            identity_error = AccessResult(
-                AccessDecision.DENY,
-                "Одного внутреннего ID недостаточно для подтверждения личности. Приложите NFC-карту или используйте действующий гостевой код.",
-                "identity_not_proven",
-            )
         supplied_user = db_service.get_user(body.user_id, include_logs=False)
-        if identity_error:
-            pass
-        elif not supplied_user or not supplied_user.get("is_active") or supplied_user.get("deleted_at"):
+        if not supplied_user or not supplied_user.get("is_active") or supplied_user.get("deleted_at"):
             identity_error = AccessResult(
                 AccessDecision.DENY,
                 "Сотрудник не найден, удалён или отключён. Доступ запрещён.",
                 "user_not_found",
             )
-        elif body.nfc_uid:
+        elif body.guest_code:
+            identity_error = AccessResult(
+                AccessDecision.DENY,
+                "Нельзя смешивать внутренний ID сотрудника и гостевой код в одном запросе.",
+                "identity_not_proven",
+            )
+        elif not body.nfc_uid:
+            identity_error = AccessResult(
+                AccessDecision.DENY,
+                "Одного внутреннего ID недостаточно для подтверждения личности. Приложите NFC-карту.",
+                "identity_not_proven",
+            )
+        else:
             resolved_user = db_service.get_user_by_nfc(body.nfc_uid)
             if not resolved_user or resolved_user["id"] != body.user_id:
                 identity_error = AccessResult(
@@ -473,8 +477,6 @@ async def access_check(body: AccessCheckRequest):
                 resolved_user = None
             else:
                 resolved_user = supplied_user
-        else:
-            resolved_user = supplied_user
     elif body.nfc_uid and not body.guest_code:
         resolved_user = db_service.get_user_by_nfc(body.nfc_uid)
         if not resolved_user:
