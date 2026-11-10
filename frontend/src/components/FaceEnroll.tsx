@@ -213,7 +213,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       // Capture a longer sequence so short actions (especially a blink) are
       // represented by multiple frames rather than missed between samples.
       await wait(200);
-      for (let i = 0; i < 8; i++) {
+      for (let i = 0; i < 12; i++) {
         const video = videoRef.current;
         if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
         const frameCanvas = document.createElement("canvas");
@@ -224,7 +224,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
         ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
         frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
-        await wait(140);
+        await wait(120);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
       setChallengeEvidence(nextEvidence);
@@ -241,7 +241,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       const diagnostic = typeof detail === "string"
         ? detail
         : detail?.failed_action
-          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Измеренный сигнал: ${detail.signal_delta ?? "нет данных"}. Повторите движение плавнее, удерживая лицо в кадре.`
+          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}.` : ""} Повторите моргание естественно: откройте глаза, моргните один раз и снова откройте.`
           : detail?.message || e?.message;
       setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
       setStage("error");
