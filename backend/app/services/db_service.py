@@ -243,12 +243,28 @@ class DBService:
 
     def delete_user(self, user_id: int, hard: bool = False) -> bool:
         with self._get_conn() as conn:
+            exists = conn.execute("SELECT id,nfc_uid FROM users WHERE id=?", (user_id,)).fetchone()
+            if not exists:
+                return False
             if hard:
+                # Keep the historical access event, but detach/anonymize its
+                # personal identity before deleting the employee row. Consent
+                # records and lockout state are removed with the biometric profile.
+                conn.execute(
+                    "UPDATE access_logs SET user_id=NULL,nfc_uid='DELETED' WHERE user_id=?",
+                    (user_id,),
+                )
+                conn.execute("DELETE FROM biometric_consents WHERE user_id=?", (user_id,))
+                conn.execute("DELETE FROM access_security_state WHERE subject_key=?",
+                             (str(exists["nfc_uid"]),))
                 cur = conn.execute("DELETE FROM users WHERE id=?", (user_id,))
             else:
                 now = datetime.now(timezone.utc).isoformat()
                 cur = conn.execute(
-                    "UPDATE users SET is_active=0,deleted_at=?,updated_at=? WHERE id=?",
+                    """UPDATE users SET is_active=0,deleted_at=?,updated_at=?,
+                       face_embedding=NULL,face_profile_embedding=NULL,
+                       photo_blob=NULL,profile_photo_blob=NULL
+                       WHERE id=?""",
                     (now, now, user_id),
                 )
             return cur.rowcount > 0
