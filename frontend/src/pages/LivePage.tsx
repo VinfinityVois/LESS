@@ -23,6 +23,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
+  const [externalDisplayActive, setExternalDisplayActive] = useState(false);
   const load = useCallback(async () => {
     try { setLogs(await getLogs(40)); } catch { setLogs([]); }
   }, []);
@@ -40,7 +41,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     setDisplayMessage("");
     try {
       await openCameraOnExternalDisplay();
-      setDisplayMessage("Видеопоток открыт на дополнительном мониторе.");
+      setExternalDisplayActive(true);
+      setDisplayMessage("Видео выведено на дополнительный монитор. Основное окно переключено на события и данные поста.");
     } catch (error) {
       setDisplayMessage(error instanceof Error ? error.message : "Не удалось открыть дополнительный экран.");
     } finally {
@@ -63,16 +65,16 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
       <div className="metric-card"><span className="metric-card__label">КАНАЛ КАМЕРЫ</span><strong className="metric-card__word">{cameraOk ? "ONLINE" : status?.camera === "stopped" ? "OFFLINE" : "—"}</strong><span className="metric-card__foot"><Camera size={13} /> CAM–01 · КПП–01</span></div>
     </div>
 
-    <div className="live-grid">
+    <div className={`live-grid ${externalDisplayActive ? "live-grid--external" : ""}`}>
       <section className="camera-column">
         <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay()} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. монитор"}</button></div></div>
-        <div className="camera-frame">
+        {!externalDisplayActive ? <div className="camera-frame">
           <VideoFeed />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
-        </div>
-        <div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
+        </div> : <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>На этом экране освобождено место для событий доступа и карточки посетителя.</span></div></div>}
+        {!externalDisplayActive && <div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
         <section className="events-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ПОСЛЕДНЯЯ АКТИВНОСТЬ</span><h2>События доступа</h2></div><span className="event-count">{logs.length} ЗАПИСЕЙ</span></div>
