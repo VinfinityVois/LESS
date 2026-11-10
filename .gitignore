@@ -5,6 +5,10 @@ __pycache__/
 *.so
 .Python
 env/
+backend/.venv312/
+.venv312/
+backend/venv312/
+venv312/
 venv/
 .venv/
 ENV/
