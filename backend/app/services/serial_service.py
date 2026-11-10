@@ -29,8 +29,13 @@ class SerialService:
         self._condition = threading.Condition()
         self._pending: dict[str, dict[str, Any]] = {}
         self._last_sequence = -1
+        controller_configured = bool((getattr(settings, "CONTROLLER_ID", "") or "").strip())
+        try:
+            self._controller_key()
+        except RuntimeError:
+            controller_configured = False
         self._hardware_status: dict[str, Any] = {
-            "configured": bool(getattr(settings, "CONTROLLER_HMAC_KEY", "")),
+            "configured": controller_configured,
             "authenticated": False, "controller_id": None,
             "lock_state": "unknown", "door_state": "unknown",
             "last_seen": None, "last_event": None, "alarm": None,
@@ -144,7 +149,7 @@ class SerialService:
             if message.get("protocol") != self.PROTOCOL or message.get("type") not in {"ack", "telemetry"}:
                 raise ValueError("invalid_message")
             expected_id = (getattr(settings, "CONTROLLER_ID", "") or "").strip()
-            if expected_id and message.get("controller_id") != expected_id:
+            if not expected_id or message.get("controller_id") != expected_id:
                 raise ValueError("controller_id_mismatch")
             stamp = datetime.fromisoformat(str(message.get("timestamp", "")).replace("Z", "+00:00"))
             if stamp.tzinfo is None or abs((datetime.now(timezone.utc) - stamp.astimezone(timezone.utc)).total_seconds()) > 10:
@@ -160,7 +165,8 @@ class SerialService:
                     "lock_state": str(message.get("lock_state", "unknown")),
                     "door_state": str(message.get("door_state", "unknown")),
                     "last_seen": datetime.now(timezone.utc).isoformat(),
-                    "last_event": message.get("event"), "alarm": message.get("alarm"),
+                    "last_event": message.get("event"),
+                    "alarm": message.get("alarm") or (message.get("door_state") if message.get("door_state") in {"forced_open", "held_open"} else None),
                     "sequence": sequence,
                 })
                 command_id = message.get("command_id")
