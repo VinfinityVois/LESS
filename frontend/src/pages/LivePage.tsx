@@ -40,6 +40,17 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
   });
   const externalDisplayActive = externalDisplayMode !== null;
+  const cameraOk = status?.camera === "running";
+  const serialOk = status?.serial === "connected";
+  const onCameraFrame = useCallback((blob: Blob) => { latestFrameRef.current = blob; }, []);
+  const parseCardUid = (raw: string | null) => {
+    if (!raw) return null;
+    let value = raw.trim();
+    try { const parsed = JSON.parse(value); if (parsed && typeof parsed.uid === "string") value = parsed.uid; } catch { /* plain UID line */ }
+    value = value.replace(/^(?:UID|CARD|NFC|CARD_UID)\\s*[:=]\\s*/i, "").trim();
+    if (!/^[A-Za-z0-9:_ -]{4,80}$/.test(value)) return null;
+    return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null;
+  };
   useEffect(() => {
     const channel = new BroadcastChannel("less-external-display");
     channel.onmessage = (event) => {
