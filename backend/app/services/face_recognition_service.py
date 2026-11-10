@@ -55,6 +55,25 @@ class FaceRecognitionService:
             raise ValueError("Кадр лица не является корректным изображением.")
         return image
 
+    def detect_faces(self, image: np.ndarray) -> list[dict[str, float]]:
+        self._load()
+        height, width = image.shape[:2]
+        self._detector.setInputSize((width, height))
+        _, faces = self._detector.detect(image)
+        if faces is None:
+            return []
+        output = []
+        for face in faces:
+            x, y, w, h, score = [float(v) for v in face[:5]]
+            output.append({
+                "x": round(max(0.0, x / width), 5),
+                "y": round(max(0.0, y / height), 5),
+                "width": round(min(1.0, w / width), 5),
+                "height": round(min(1.0, h / height), 5),
+                "score": round(score, 4),
+            })
+        return output
+
     def embedding_from_image(self, data_url: str) -> dict[str, Any]:
         self._load()
         image = self.decode_image(data_url)
