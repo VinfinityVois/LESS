@@ -36,7 +36,7 @@ class LivenessService:
             if value["expires_at"] > now
         }
         challenge_id = secrets.token_urlsafe(32)
-        actions = list(secrets.SystemRandom().sample(self.ACTIONS, 2))
+        actions = list(secrets.SystemRandom().sample(self.ACTIONS, len(self.ACTIONS)))
         expires = now + timedelta(seconds=self.TTL_SECONDS)
         self._challenges[challenge_id] = {
             "admin_id": admin_id, "subject_id": subject_id,
