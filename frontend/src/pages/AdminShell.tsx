@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import {
   Video, History, AlertTriangle, Users, BadgeCheck, SlidersHorizontal,
   RadioTower, Server, BrainCircuit, Nfc, Clock3, Bell, ShieldCheck,
-  ChevronRight, Activity, Fingerprint, Camera, Menu,
+  ChevronRight, Activity, Fingerprint, Camera, Menu, PanelLeftClose, PanelLeftOpen,
 } from "lucide-react";
 import { useSystemStore } from "../stores/systemStore";
 import { ru } from "../i18n/ru";
@@ -39,6 +39,7 @@ export default function AdminShell() {
   const [guestMsg, setGuestMsg] = useState("");
   const [guestBusy, setGuestBusy] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
+  const [sidebarPinned, setSidebarPinned] = useState(false);
 
   useEffect(() => {
     void refresh();
@@ -89,8 +90,8 @@ export default function AdminShell() {
   ];
 
   return <div className="less-shell">
-    <aside className={`less-sidebar ${mobileNav ? "is-open" : ""}`}>
-      <div className="brand-lockup"><div className="brand-mark"><RadioTower size={21} strokeWidth={1.8} /></div><div className="brand-copy"><div className="brand-name">LESS<span> / </span>CONTROL</div><div className="brand-subtitle">LOCAL ENTRY SECURITY SYSTEM</div></div><span className="brand-version">0.1</span></div>
+    <aside className={`less-sidebar ${mobileNav ? "is-open" : ""} ${sidebarPinned ? "is-pinned" : "is-collapsible"}`} aria-label="Боковая навигация">
+      <div className="brand-lockup"><div className="brand-mark"><RadioTower size={21} strokeWidth={1.8} /></div><div className="brand-copy"><div className="brand-name">LESS<span> / </span>CONTROL</div><div className="brand-subtitle">LOCAL ENTRY SECURITY SYSTEM</div></div><span className="brand-version">0.1</span><button className="sidebar-toggle" onClick={() => setSidebarPinned((value) => !value)} aria-label={sidebarPinned ? "Свернуть меню" : "Закрепить открытое меню"} title={sidebarPinned ? "Свернуть меню" : "Закрепить меню"}>{sidebarPinned ? <PanelLeftClose size={15} /> : <PanelLeftOpen size={15} />}</button></div>
       <div className="site-selector"><div className="site-selector__top"><span>ОБЪЕКТ НАБЛЮДЕНИЯ</span><span className="site-selector__code">LOC–01</span></div><div className="site-selector__name">Главный контрольно-пропускной пункт</div><div className="site-selector__bottom"><span className="site-live-dot" /> ЛОКАЛЬНЫЙ КОНТУР</div></div>
       <nav className="side-navigation" aria-label="Основная навигация">{Object.entries(grouped).map(([group, items]) => <div className="nav-group" key={group}><div className="nav-group__label">{group}</div>{items.map((item) => { const Icon = item.icon; const active = nav === item.id; return <button key={item.id} className={`nav-link ${active ? "is-active" : ""}`} aria-current={active ? "page" : undefined} onClick={() => { setNav(item.id); setMobileNav(false); }}><Icon size={17} strokeWidth={1.8} /><span>{item.label}</span>{active && <ChevronRight className="nav-link__arrow" size={15} />}{item.id === "incidents" && <span className="nav-link__count">—</span>}</button>; })}</div>)}</nav>
       <div className="sidebar-bottom"><div className="sidebar-security"><div className="sidebar-security__icon"><ShieldCheck size={17} /></div><div><strong>Локальный контур</strong><span>Управление через backend</span></div><span className="security-indicator" /></div><div className="sidebar-footer"><span>LESS CONTROL DESK</span><span>BUILD 0.1.0</span></div></div>

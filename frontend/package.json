@@ -20,7 +20,8 @@
     "zustand": "^5.0.0",
     "axios": "^1.7.7",
     "clsx": "^2.1.1",
-    "lucide-react": "^0.460.0"
+    "lucide-react": "^0.460.0",
+    "@mediapipe/tasks-vision": "^0.10.14"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
