@@ -39,6 +39,8 @@ class DBService:
                     fingerprint_hash TEXT,
                     face_embedding BLOB,
                     face_profile_embedding BLOB,
+                    face_vector BLOB,
+                    face_profile_vector BLOB,
                     photo_blob BLOB,
                     is_active INTEGER DEFAULT 1,
                     created_at TEXT NOT NULL,
@@ -96,6 +98,8 @@ class DBService:
             """)
             self._ensure_column(conn, "users", "position", "TEXT DEFAULT ''")
             self._ensure_column(conn, "users", "face_profile_embedding", "BLOB")
+            self._ensure_column(conn, "users", "face_vector", "BLOB")
+            self._ensure_column(conn, "users", "face_profile_vector", "BLOB")
             self._ensure_column(conn, "users", "photo_blob", "BLOB")
             self._ensure_column(conn, "users", "profile_photo_blob", "BLOB")
             self._ensure_column(conn, "users", "deleted_at", "TEXT")
@@ -156,9 +160,9 @@ class DBService:
             return None
         user = dict(row)
         user["is_active"] = int(user.get("is_active") or 0)
-        user["face_enrolled"] = int(bool(user.get("face_embedding")) or bool(user.get("face_profile_embedding")))
+        user["face_enrolled"] = int(bool(user.get("face_vector")) or bool(user.get("face_embedding")) or bool(user.get("face_profile_embedding")))
         user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
-        for private_field in ("face_embedding", "face_profile_embedding", "pin_hash", "fingerprint_hash"):
+        for private_field in ("face_embedding", "face_profile_embedding", "face_vector", "face_profile_vector", "pin_hash", "fingerprint_hash"):
             user.pop(private_field, None)
         if not include_photo:
             user.pop("photo_blob", None)
@@ -218,6 +222,8 @@ class DBService:
             user["profile_photo_data_url"] = self._photo_data_url(user.pop("profile_photo_blob", None))
             user.pop("face_embedding", None)
             user.pop("face_profile_embedding", None)
+            user.pop("face_vector", None)
+            user.pop("face_profile_vector", None)
             user.pop("pin_hash", None)
             user.pop("fingerprint_hash", None)
             if include_logs:
@@ -371,6 +377,60 @@ class DBService:
             )
             if cur.rowcount != 1:
                 raise ValueError("Профиль сотрудника не найден или уже удалён. Биометрия не сохранена.")
+
+
+    def save_face_vectors(self, user_id: int, front_vector: List[float], profile_vector: List[float]) -> None:
+        if len(front_vector) != 128 or len(profile_vector) != 128:
+            raise ValueError("Ожидаются два биометрических вектора размерностью 128.")
+        front = self._encrypt(json.dumps(front_vector, separators=(",", ":")).encode())
+        profile = self._encrypt(json.dumps(profile_vector, separators=(",", ":")).encode())
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "UPDATE users SET face_vector=?,face_profile_vector=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
+                (front, profile, datetime.now(timezone.utc).isoformat(), user_id),
+            )
+            if cur.rowcount != 1:
+                raise ValueError("Профиль сотрудника не найден или уже удалён. Биометрия не сохранена.")
+
+    def list_face_vectors(self) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT id,name,position,photo_blob,profile_photo_blob,face_vector,face_profile_vector FROM users WHERE is_active=1 AND deleted_at IS NULL AND face_vector IS NOT NULL"
+            ).fetchall()
+        result = []
+        for row in rows:
+            front_raw = self._decrypt(row["face_vector"])
+            profile_raw = self._decrypt(row["face_profile_vector"])
+            if not front_raw:
+                continue
+            try:
+                front = json.loads(front_raw.decode("utf-8"))
+                profile = json.loads(profile_raw.decode("utf-8")) if profile_raw else []
+                if len(front) != 128 or (profile and len(profile) != 128):
+                    continue
+                result.append({
+                    "user_id": int(row["id"]), "name": row["name"] or "Без имени",
+                    "position": row["position"] or "", "front_vector": front,
+                    "profile_vector": profile,
+                    "photo_data_url": self._photo_data_url(row["photo_blob"] or row["profile_photo_blob"]),
+                })
+            except (ValueError, TypeError, UnicodeDecodeError):
+                continue
+        return result
+
+    def find_similar_face_vectors(self, user_id: int, front_vector: List[float], profile_vector: List[float], limit: int = 5) -> List[Dict[str, Any]]:
+        from app.services.face_recognition_service import face_recognition_service
+        candidates = []
+        for item in self.list_face_vectors():
+            if item["user_id"] == user_id:
+                continue
+            scores = [face_recognition_service.cosine_similarity(front_vector, item["front_vector"])]
+            if item["profile_vector"]:
+                scores.append(face_recognition_service.cosine_similarity(front_vector, item["profile_vector"]))
+            score = max(scores)
+            candidates.append({"user_id": item["user_id"], "name": item["name"], "similarity": round(max(0.0, score) * 100, 1)})
+        candidates.sort(key=lambda item: item["similarity"], reverse=True)
+        return candidates[:limit]
 
     def find_similar_faces(self, user_id: int, landmarks: List[List[float]], limit: int = 5) -> List[Dict[str, Any]]:
         target = [v for point in landmarks for v in point[:3]]
