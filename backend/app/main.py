@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
+from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.services.camera_service import camera_service
@@ -16,6 +17,12 @@ from app.services.db_service import db_service
 from app.services.auth_service import auth_service
 from app.services.ai_analyzer import ai_analyzer
 from app.services.stream_service import stream_service
+from app.services.access_policy import (
+    access_policy,
+    AccessContext,
+    Direction,
+    AccessDecision,
+)
 
 
 @asynccontextmanager
@@ -53,11 +60,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {
-        "service": "LESS Backend",
-        "version": "0.1.0",
-        "status": "running",
-    }
+    return {"service": "LESS Backend", "version": "0.1.0", "status": "running"}
 
 
 @app.get("/api/status")
@@ -84,14 +87,12 @@ async def get_alerts(limit: int = Query(20, ge=1, le=100)):
 
 @app.post("/api/ai/analyze")
 async def run_ai_analyze():
-    alerts = ai_analyzer.run_periodic_check()
-    return {"generated_alerts": alerts}
+    return {"generated_alerts": ai_analyzer.run_periodic_check()}
 
 
 @app.post("/api/camera/start")
 async def camera_start():
-    ok = camera_service.start()
-    return {"success": ok}
+    return {"success": camera_service.start()}
 
 
 @app.post("/api/camera/stop")
@@ -118,6 +119,86 @@ async def create_user(nfc_uid: str, name: str = "", pin: str = None):
     pin_hash = crypto_service.hash_secret(pin) if pin else None
     user_id = db_service.add_user(nfc_uid=nfc_uid, name=name, pin_hash=pin_hash)
     return {"id": user_id, "nfc_uid": nfc_uid}
+
+
+class AccessCheckRequest(BaseModel):
+    nfc_uid: Optional[str] = None
+    user_id: Optional[int] = None
+    door_id: str = "main"
+    direction: str = "in"
+    guest_code: Optional[str] = None
+    factor: str = "nfc"
+
+
+class GuestCodeCreate(BaseModel):
+    label: str = "Гость"
+    valid_hours: float = Field(default=2.0, ge=0.1, le=72)
+    max_uses: int = Field(default=1, ge=1, le=100)
+    door_ids: Optional[list] = None
+
+
+@app.post("/api/access/check")
+async def access_check(body: AccessCheckRequest):
+    direction = Direction.IN if body.direction.lower() != "out" else Direction.OUT
+    ctx = AccessContext(
+        nfc_uid=body.nfc_uid,
+        user_id=body.user_id,
+        door_id=body.door_id,
+        direction=direction,
+        guest_code=body.guest_code,
+        factor=body.factor,
+    )
+    result = access_policy.evaluate(ctx)
+    event = "granted" if result.decision == AccessDecision.ALLOW else "denied"
+    db_service.log_access(
+        nfc_uid=body.nfc_uid or body.guest_code or "",
+        event_type=event,
+        factor_used=body.factor,
+        reason=f"{result.code}: {result.reason}",
+        user_id=body.user_id,
+    )
+    return {
+        "decision": result.decision.value,
+        "reason": result.reason,
+        "code": result.code,
+        "details": result.details,
+    }
+
+
+@app.get("/api/access/doors")
+async def list_doors():
+    doors = []
+    for d in access_policy.doors.values():
+        doors.append({
+            "door_id": d.door_id,
+            "name": d.name,
+            "anti_passback": d.anti_passback,
+            "dual_control": d.dual_control,
+            "schedule": [
+                {
+                    "start": w.start.isoformat(timespec="minutes"),
+                    "end": w.end.isoformat(timespec="minutes"),
+                    "weekdays": list(w.weekdays),
+                }
+                for w in d.schedule
+            ],
+        })
+    return {"doors": doors}
+
+
+@app.post("/api/access/guest-codes")
+async def create_guest_code(body: GuestCodeCreate):
+    return access_policy.create_guest_code(
+        label=body.label,
+        valid_hours=body.valid_hours,
+        max_uses=body.max_uses,
+        door_ids=body.door_ids,
+    )
+
+
+@app.get("/api/access/guest-codes")
+async def list_guest_codes():
+    return {"codes": access_policy.list_guest_codes()}
 
 
 @app.websocket("/ws")
