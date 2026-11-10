@@ -11,12 +11,14 @@ class TamperEvidentAuditTests(unittest.TestCase):
         self.temp_dir = tempfile.TemporaryDirectory()
         self.old_key = settings.AUDIT_HMAC_KEY
         self.old_data_dir = settings.DATA_DIR
+        self.old_controller_key = settings.CONTROLLER_HMAC_KEY
         settings.AUDIT_HMAC_KEY = bytes(range(32)).hex()
         settings.DATA_DIR = Path(self.temp_dir.name)
 
     def tearDown(self):
         settings.AUDIT_HMAC_KEY = self.old_key
         settings.DATA_DIR = self.old_data_dir
+        settings.CONTROLLER_HMAC_KEY = self.old_controller_key
         self.temp_dir.cleanup()
 
     def test_audit_chain_appends_and_verifies(self):
