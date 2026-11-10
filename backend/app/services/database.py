@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import os
 import shutil
-import sqlite3 as stdlib_sqlite3
 import time
 from pathlib import Path
 
@@ -57,7 +56,6 @@ def _open_cipher(path: Path, key: str):
 def connect_encrypted(path: Path | str | None = None):
     key = validate_database_key(settings.SECRET_KEY)
     conn = _open_cipher(Path(path or settings.DB_PATH), key)
-    conn.execute("PRAGMA journal_mode = DELETE")
     return conn
 
 
@@ -130,7 +128,7 @@ def ensure_encrypted_database(db_path: Path | str, secret_key: str) -> None:
         # Keep a second, already encrypted recovery copy. No plaintext backup is
         # created by this migration.
         shutil.copy2(temp_path, backup_temp)
-        with backup_temp.open("rb") as stream:
+        with backup_temp.open("rb+") as stream:
             os.fsync(stream.fileno())
         os.replace(backup_temp, backup_path)
         os.replace(temp_path, path)
