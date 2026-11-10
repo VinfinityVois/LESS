@@ -519,9 +519,7 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             if data == "start_stream":
-                if not stream_service.is_streaming:
-                    import asyncio
-                    asyncio.create_task(stream_service.start_camera_stream())
+                stream_service.request_start()
             elif data == "stop_stream":
                 stream_service.stop_stream()
             else:
