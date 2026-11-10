@@ -128,10 +128,16 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.save(); ctx.translate(width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, width, height); ctx.restore();
-    const data = ctx.getImageData(0, 0, width, height).data;
+    const faceX = landmarks!.map((p) => p.x * width);
+    const faceY = landmarks!.map((p) => p.y * height);
+    const left = Math.max(0, Math.floor(Math.min(...faceX) - width * .025));
+    const top = Math.max(0, Math.floor(Math.min(...faceY) - height * .025));
+    const right = Math.min(width, Math.ceil(Math.max(...faceX) + width * .025));
+    const bottom = Math.min(height, Math.ceil(Math.max(...faceY) + height * .025));
+    const data = ctx.getImageData(left, top, Math.max(1, right - left), Math.max(1, bottom - top)).data;
     let sum = 0, sumSq = 0, count = 0;
-    for (let i = 0; i < data.length; i += 16) { const l = (data[i] + data[i+1] + data[i+2]) / 3; sum += l; sumSq += l*l; count++; }
-    const mean = sum / count, deviation = Math.sqrt(Math.max(0, sumSq / count - mean*mean));
+    for (let i = 0; i < data.length; i += 16) { const l = (data[i] * .299 + data[i+1] * .587 + data[i+2] * .114); sum += l; sumSq += l*l; count++; }
+    const mean = sum / Math.max(1, count), deviation = Math.sqrt(Math.max(0, sumSq / Math.max(1, count) - mean*mean));
     const lightScore = mean > 55 && mean < 210 ? 100 : Math.max(15, 100 - Math.abs(mean - 130));
     const contrastScore = Math.min(100, deviation * 1.8);
     const score = Math.round(lightScore * .65 + contrastScore * .35);
