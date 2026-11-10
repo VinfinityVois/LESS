@@ -509,3 +509,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 
 .users-permission-note{margin-top:10px;padding:10px 12px;border:1px solid rgba(210,166,92,.24);border-radius:10px;background:rgba(210,166,92,.07);color:var(--text-secondary,#aeb8c4);font-size:12px;line-height:1.55;max-width:760px}
+
+
+/* Liveness capture progress */
+.liveness-capture-progress { display: grid; gap: 7px; margin: 14px 0 4px; }
+.liveness-capture-progress > div { display: flex; justify-content: space-between; color: var(--muted, #91a3ad); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+.liveness-capture-progress b { color: var(--accent, #68d8ca); font-variant-numeric: tabular-nums; }
+.liveness-capture-progress > i { display: block; height: 5px; overflow: hidden; border-radius: 999px; background: rgba(130, 160, 170, .16); }
+.liveness-capture-progress > i > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #42b9b0, #a1e8cf); transition: width .12s linear; }
