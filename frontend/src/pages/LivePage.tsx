@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
-import { getLogs, listUsers, simulateTestCard, readSerialCardLine, createFaceAccessChallenge, checkFaceAccess, type FaceAccessChallenge, type AccessLog, type SystemStatus, type User } from "../services/api";
+import { getLogs, listUsers, simulateTestCard, readSerialCardLine, createFaceAccessChallenge, checkFaceAccess, getHardwareStatus, verifySecurityAudit, type FaceAccessChallenge, type AccessLog, type SystemStatus, type User } from "../services/api";
 
 function fmt(iso?: string | null) {
   if (!iso) return "—";
@@ -22,6 +22,8 @@ function Factor({ icon: Icon, label, detail, state }: {
 export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [registeredFaces, setRegisteredFaces] = useState(0);
+  const [hardwareStatus, setHardwareStatus] = useState<any>(null);
+  const [auditStatus, setAuditStatus] = useState<any>(null);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
   const [testCardBusy, setTestCardBusy] = useState(false);
@@ -75,6 +77,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
       const users: User[] = await listUsers(true);
       setRegisteredFaces(users.filter((user) => !!user.face_enrolled && !!user.is_active && !user.deleted_at).length);
     } catch { setRegisteredFaces(0); }
+    try { setHardwareStatus(await getHardwareStatus()); } catch { setHardwareStatus(null); }
+    try { setAuditStatus(await verifySecurityAudit()); } catch { setAuditStatus({ valid: false, error: "Проверка аудита недоступна" }); }
   }, []);
   useEffect(() => {
     void load();
@@ -285,10 +289,16 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{subjectStageLabel}</b></div>
         </section>
 
-        <section className="operator-warning">
-          <div className="operator-warning__icon"><LockKeyhole size={17} /></div>
-          <div><strong>Команды управления заблокированы</strong><p>Открытие турникета и ручное разрешение не подключены к защищённому API. Интерфейс не отправляет фиктивные команды на контроллер.</p></div>
-          <ArrowUpRight size={15} className="operator-warning__arrow" />
+        <section className="surface-panel hardware-security-panel">
+          <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ФИЗИЧЕСКИЙ КОНТУР</span><h2>Контроллер двери</h2></div><span className={"standby-pill " + (hardwareStatus?.authenticated ? "is-connected" : "")}>{hardwareStatus?.authenticated ? "AUTH OK" : "OFFLINE"}</span></div>
+          <div className="hardware-state-row"><span>Канал Serial</span><b>{hardwareStatus?.serial_connected ? "ПОДКЛЮЧЁН" : "НЕТ СВЯЗИ"}</b></div>
+          <div className="hardware-state-row"><span>Подпись контроллера</span><b>{hardwareStatus?.authenticated ? "ПОДТВЕРЖДЕНА" : "НЕ ПОДТВЕРЖДЕНА"}</b></div>
+          <div className="hardware-state-row"><span>Замок</span><b>{hardwareStatus?.lock_state || "НЕИЗВЕСТНО"}</b></div>
+          <div className="hardware-state-row"><span>Датчик двери</span><b>{hardwareStatus?.door_state || "НЕИЗВЕСТНО"}</b></div>
+          {hardwareStatus?.alarm && <p className="hardware-alarm" role="alert">ТРЕВОГА · {hardwareStatus.alarm}</p>}
+          <div className="hardware-state-row"><span>Цепочка аудита</span><b>{auditStatus?.valid ? "ЦЕЛОСТНОСТЬ ПОДТВЕРЖДЕНА" : "ПРОВЕРКА НЕ ПРОЙДЕНА"}</b></div>
+          <div className="hardware-state-row"><span>Записей с HMAC</span><b>{auditStatus?.records ?? "—"}</b></div>
+          <p className="hardware-security-note">{hardwareStatus?.configured ? "Ключ контроллера задан. Доступ разрешается только после подписанного ACK и подтверждения состояния замка." : "Контроллер не настроен. Проход остаётся закрытым до настройки отдельного CONTROLLER_HMAC_KEY и совместимой прошивки."}</p>
         </section>
       </aside>
     </div>
