@@ -318,7 +318,7 @@ select:disabled{opacity:.55;cursor:not-allowed}
 
 
 /* Auxiliary screen is a mirror for one selected panel, not a replacement for the operator workspace. */
-.live-grid--external{grid-template-columns:minmax(0,2.2fr) minmax(280px,.78fr)!important}
+.live-grid--external{grid-template-columns:minmax(0,1fr) minmax(280px,.8fr)!important}
 .live-grid--external .verification-column{display:flex!important;min-width:0}
 .live-grid--external-video .camera-monitor-block>.camera-frame,
 .live-grid--external-video .camera-monitor-block>.camera-caption{display:none!important}
