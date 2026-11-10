@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
-import { getLogs, type AccessLog, type SystemStatus } from "../services/api";
+import { getLogs, simulateTestCard, type AccessLog, type SystemStatus } from "../services/api";
 
 function fmt(iso?: string | null) {
   if (!iso) return "—";
@@ -23,6 +23,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
+  const [testCardBusy, setTestCardBusy] = useState(false);
   const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
     const saved = localStorage.getItem("less-external-display-mode");
     return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
@@ -73,6 +74,16 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const closeExternal = async () => {
     try { await closeExternalDisplay(); } finally { localStorage.removeItem("less-external-display-active"); localStorage.removeItem("less-external-display-mode"); setExternalDisplayMode(null); }
   };
+  const runTestCard = async () => {
+    setTestCardBusy(true);
+    try {
+      const result = await simulateTestCard({ label: "Виртуальная карта · QA", door_id: "main", direction: "in" });
+      setDisplayMessage(result.message);
+      await load();
+    } catch (error) {
+      setDisplayMessage((error as any)?.response?.data?.detail || "Не удалось записать тестовое событие.");
+    } finally { setTestCardBusy(false); }
+  };
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
   const unknownIdentity = logs.find((log) => {
@@ -95,7 +106,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     <div className={`live-grid ${externalDisplayMode ? `live-grid--external live-grid--external-${externalDisplayMode}` : ""}`}>
       <section className="camera-column">
         <div className="camera-monitor-block">
-        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
+        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void runTestCard()} disabled={testCardBusy} title="Только тестовая запись в журнал; замок не активируется"><Nfc size={14}/>{testCardBusy ? "Запись…" : "Тестовая карта"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
+        {displayMessage && <p className="users-message" role="status">{displayMessage}</p>}
         <div className={`camera-frame ${externalDisplayActive ? "camera-frame--relayed" : ""}`}>
           {externalDisplayMode !== "video" && <VideoFeed />}
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
