@@ -1,5 +1,6 @@
 import { useState } from "react";
 import AdminShell from "./pages/AdminShell";
+import { ru } from "./i18n/ru";
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
   const [login, setLogin] = useState("");
@@ -12,7 +13,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
     setLoading(true);
     setTimeout(() => {
       if (login === "admin" && password === "admin") onLogin();
-      else setError("Неверный логин или пароль");
+      else setError(ru.badCreds);
       setLoading(false);
     }, 300);
   };
@@ -29,19 +30,19 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             L
           </div>
           <div>
-            <div className="font-display text-lg font-bold text-primary tracking-tight">LESS AI</div>
-            <div className="font-mono-label text-secondary">СКУД MONITORING</div>
+            <div className="font-display text-lg font-bold text-primary tracking-tight">{ru.brand}</div>
+            <div className="font-mono-label text-secondary">{ru.subtitle}</div>
           </div>
         </div>
-        <h2 className="font-display text-xl font-semibold mb-6">Вход администратора</h2>
-        <label className="font-mono-label text-outline block mb-1">Логин</label>
+        <h2 className="font-display text-xl font-semibold mb-6">{ru.loginTitle}</h2>
+        <label className="font-mono-label text-outline block mb-1">{ru.login}</label>
         <input
           className="w-full mb-4 px-3 py-2.5 rounded-lg bg-surface border border-surface-highest text-sm focus:outline-none focus:border-primary"
           value={login}
           onChange={(e) => setLogin(e.target.value)}
           autoFocus
         />
-        <label className="font-mono-label text-outline block mb-1">Пароль</label>
+        <label className="font-mono-label text-outline block mb-1">{ru.password}</label>
         <input
           type="password"
           className="w-full mb-4 px-3 py-2.5 rounded-lg bg-surface border border-surface-highest text-sm focus:outline-none focus:border-primary"
@@ -54,9 +55,9 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           disabled={loading}
           className="w-full py-2.5 rounded-lg bg-primary-container text-slate-950 font-semibold text-sm hover:brightness-110 disabled:opacity-50"
         >
-          {loading ? "…" : "Войти"}
+          {loading ? "…" : ru.signIn}
         </button>
-        <p className="mt-4 text-center font-mono-label text-outline">demo · admin / admin</p>
+        <p className="mt-4 text-center font-mono-label text-outline">{ru.demoHint}</p>
       </form>
     </div>
   );
