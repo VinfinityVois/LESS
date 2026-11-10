@@ -93,3 +93,54 @@ html,body,#root{margin:0;width:100%;min-height:100%;background:var(--bg)}body{fo
 .camera-display__viewport img{object-fit:contain!important}
 .camera-display__footer{border-top:1px solid rgba(157,183,194,.12);border-bottom:0}
 @media(max-width:650px){.camera-actions{justify-content:flex-start}.camera-display__bar,.camera-display__footer{padding:9px 11px;font-size:8px}.camera-display__bar small{display:none}}
+
+
+/* Fixed operator console viewport: the document itself never scrolls. */
+html,body,#root{height:100%;min-height:0;overflow:hidden}
+.less-shell{height:100dvh;min-height:0;overflow:hidden}
+.less-workspace{height:100dvh;min-height:0;overflow:hidden}
+.workspace-content{flex:1;min-height:0;overflow:hidden;padding-top:16px;padding-bottom:16px}
+.less-sidebar{height:100dvh;min-height:0;overflow:hidden;flex:0 0 254px}
+.side-navigation{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+/* A collapsed sidebar is a stable icon rail; it does not expand on hover. */
+.less-sidebar.is-collapsible,.less-sidebar.is-collapsible:hover{width:76px;min-width:76px;flex-basis:76px}
+.less-sidebar.is-collapsible:hover .brand-copy,.less-sidebar.is-collapsible:hover .brand-version,.less-sidebar.is-collapsible:hover .site-selector,.less-sidebar.is-collapsible:hover .nav-group__label,.less-sidebar.is-collapsible:hover .nav-link span,.less-sidebar.is-collapsible:hover .sidebar-security div:nth-child(2),.less-sidebar.is-collapsible:hover .sidebar-footer{opacity:0;pointer-events:none}
+.less-sidebar.is-collapsible .brand-copy,.less-sidebar.is-collapsible .brand-version,.less-sidebar.is-collapsible .site-selector,.less-sidebar.is-collapsible .nav-group__label,.less-sidebar.is-collapsible .nav-link span,.less-sidebar.is-collapsible .sidebar-security div:nth-child(2),.less-sidebar.is-collapsible .sidebar-footer{opacity:0;pointer-events:none}
+.less-sidebar.is-collapsible .brand-lockup{padding:0 0 24px;justify-content:center}
+.less-sidebar.is-collapsible .sidebar-toggle{position:absolute;right:8px;top:66px;z-index:2}
+.less-sidebar.is-collapsible .nav-link{justify-content:center;padding:11px 0;gap:0}
+.less-sidebar.is-collapsible .sidebar-security{justify-content:center;padding:9px 0}
+.live-dashboard{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.live-heading{margin-bottom:10px;flex:0 0 auto}
+.live-heading p{margin-top:5px}
+.metric-row{margin-bottom:10px;gap:9px;flex:0 0 auto}
+.metric-card{min-height:78px;padding:10px 13px}
+.metric-card strong{font-size:23px;margin-top:5px}
+.live-grid{flex:1;min-height:0;grid-template-columns:minmax(0,1.8fr) minmax(280px,.8fr);gap:12px;overflow:hidden}
+.camera-column{min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.camera-column>.panel-heading{flex:0 0 auto;margin-bottom:7px}
+.camera-frame{flex:0 0 auto;min-height:0;height:clamp(220px,37vh,420px);aspect-ratio:auto}
+.camera-caption{padding:6px 2px 8px;flex:0 0 auto}
+.events-panel{min-height:0;flex:1;display:flex;flex-direction:column}
+.events-table{min-height:0;overflow:hidden}
+.events-table__head,.event-row{padding-top:7px;padding-bottom:7px}
+.verification-column{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.camera-display{height:100dvh;width:100vw;overflow:hidden}
+.camera-display__viewport{min-height:0;display:flex;align-items:center;justify-content:center}
+.camera-display__viewport>div{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.camera-display__viewport img,.camera-display__viewport video{width:100%;height:100%;object-fit:contain!important}
+@media(max-height:800px) and (min-width:851px){
+ .topbar{min-height:54px}.system-strip{min-height:36px}
+ .workspace-content{padding-top:10px;padding-bottom:10px}
+ .live-heading{margin-bottom:7px}.live-heading h1{font-size:22px}
+ .metric-card{min-height:66px;padding:8px 11px}.metric-card__foot{margin-top:2px}
+ .camera-frame{height:clamp(190px,32vh,300px)}
+ .event-row,.events-table__head{padding-top:5px;padding-bottom:5px}
+}
+@media(max-width:850px){
+ html,body,#root{height:auto;min-height:100%;overflow:auto}
+ .less-shell,.less-workspace{height:auto;min-height:100dvh;overflow:visible}
+ .workspace-content{overflow:visible}
+ .less-sidebar{height:100dvh}
+ .less-sidebar.is-collapsible,.less-sidebar.is-collapsible:hover,.less-sidebar.is-pinned{width:254px;min-width:254px;flex-basis:254px}
+}
