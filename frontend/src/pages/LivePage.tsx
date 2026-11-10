@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import {
   History, ShieldCheck, LockKeyhole, UserRoundSearch, Fingerprint,
-  Nfc, Camera, ScanFace, CircleAlert, ArrowUpRight, MonitorUp,
+  Nfc, Camera, ScanFace, CircleAlert, MonitorUp,
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
