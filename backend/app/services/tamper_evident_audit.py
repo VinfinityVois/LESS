@@ -33,7 +33,7 @@ class TamperEvidentAudit:
         self._verify_and_load()
 
     def _derive_key(self) -> bytes:
-        secret = (settings.SECRET_KEY or "").strip()
+        secret = (settings.AUDIT_HMAC_KEY or "").strip()
         if len(secret) == 64:
             try:
                 raw = bytes.fromhex(secret)
@@ -42,7 +42,7 @@ class TamperEvidentAudit:
         else:
             raw = secret.encode("utf-8")
         if len(raw) < 32 or len(set(raw)) < 12:
-            raise RuntimeError("Для защищённого аудита требуется уникальный SECRET_KEY не короче 32 байт.")
+            raise RuntimeError("Для защищённого аудита требуется отдельный AUDIT_HMAC_KEY: 32 случайных байта в hex.")
         return hashlib.sha256(b"LESS/security-audit/v1/" + raw).digest()
 
     @staticmethod
