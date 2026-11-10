@@ -777,21 +777,11 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
     # fresh controller ACK and a sane door-sensor state before recording grant.
     if final_decision == AccessDecision.ALLOW:
         try:
-            command = serial_service.send_secure_command("unlock", body.door_id, duration_ms=3000)
-            hardware_ack = await asyncio.to_thread(
-                serial_service.wait_for_ack,
-                command["command_id"],
-                float(getattr(settings, "CONTROLLER_ACK_TIMEOUT", 4.0)),
-            )
-            if not hardware_ack or not hardware_ack.get("accepted") or hardware_ack.get("lock_state") != "unlocked" or hardware_ack.get("door_state") not in {"closed", "open"}:
-                final_decision = AccessDecision.DENY
-                final_code = "hardware_ack_invalid"
-                final_reason = "Контроллер не подтвердил снятие блокировки и исправное состояние датчика двери. Проход запрещён."
-                access_policy.register_denied(ctx, final_code)
+            hardware_ack = await request_hardware_unlock(body.door_id)
         except Exception as exc:
             final_decision = AccessDecision.DENY
-            final_code = "hardware_controller_unavailable"
-            final_reason = "Защищённый контроллер недоступен или не настроен. Физический проход запрещён."
+            final_code = "hardware_ack_invalid" if str(exc) == "controller_ack_invalid" else "hardware_controller_unavailable"
+            final_reason = "Контроллер не подтвердил физическое состояние двери. Проход запрещён."
             access_policy.register_denied(ctx, final_code)
             logger.warning(f"Hardware unlock fail-closed: {exc}")
 
