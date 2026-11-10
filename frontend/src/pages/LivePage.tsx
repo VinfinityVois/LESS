@@ -58,27 +58,26 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
   return <div className="live-dashboard">
     <div className="page-heading live-heading">
-      <div><span className="eyebrow">ОПЕРАТИВНЫЙ ПОСТ · КПП–01</span><h1>Мониторинг доступа</h1><p>Наблюдение за точкой прохода и проверка факторов идентификации.</p></div>
+      <div className="live-heading__copy"><span className="eyebrow">ОПЕРАТИВНЫЙ ПОСТ · КПП–01</span><h1>Мониторинг доступа</h1><p>Наблюдение за точкой прохода и проверка факторов идентификации.</p></div>
+      <div className="live-heading__metrics">
+        <div className="live-mini-metric"><span>СОБЫТИЙ В ЖУРНАЛЕ</span><b>{logs.length}</b></div>
+        <div className="live-mini-metric is-success"><span>ДОСТУП РАЗРЕШЁН</span><b>{granted}</b></div>
+        <div className="live-mini-metric is-warning"><span>ОТКАЗЫ</span><b>{denied}</b></div>
+      </div>
       <div className="post-status"><span className="post-status__dot" /><div><strong>ПОСТ НАБЛЮДЕНИЯ</strong><small>РЕЖИМ ОЖИДАНИЯ</small></div></div>
-    </div>
-
-    <div className="metric-row">
-      <div className="metric-card"><span className="metric-card__label">СОБЫТИЙ В ЖУРНАЛЕ</span><strong>{logs.length}</strong><span className="metric-card__foot"><Activity size={13} /> Последние записи</span></div>
-      <div className="metric-card metric-card--success"><span className="metric-card__label">ДОСТУП РАЗРЕШЁН</span><strong>{granted}</strong><span className="metric-card__foot"><ShieldCheck size={13} /> По журналу событий</span></div>
-      <div className="metric-card metric-card--warning"><span className="metric-card__label">ОТКАЗЫ</span><strong>{denied}</strong><span className="metric-card__foot"><CircleAlert size={13} /> По журналу событий</span></div>
-      <div className="metric-card"><span className="metric-card__label">КАНАЛ КАМЕРЫ</span><strong className="metric-card__word">{cameraOk ? "ONLINE" : status?.camera === "stopped" ? "OFFLINE" : "—"}</strong><span className="metric-card__foot"><Camera size={13} /> CAM–01 · КПП–01</span></div>
     </div>
 
     <div className={`live-grid ${externalDisplayActive ? "live-grid--external" : ""}`}>
       <section className="camera-column">
         <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("video")} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. экран · видео"}</button><button className="users-button camera-display-button" onClick={() => void openExternalDisplay("events")} disabled={displayBusy}><History size={14}/>Доп. экран · события</button>{externalDisplayActive && <button className="users-button camera-display-button" onClick={() => void closeExternal()}><MonitorUp size={14}/>Закрыть доп. экран</button>}</div></div>
-        {!externalDisplayActive ? <div className="camera-frame">
+        <div className={`camera-frame ${externalDisplayActive ? "camera-frame--relayed" : ""}`}>
           <VideoFeed />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
-        </div> : <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>На этом экране освобождено место для событий доступа и карточки посетителя.</span></div></div>}
-        {!externalDisplayActive && <div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
+        </div>
+        {externalDisplayActive && <div className="external-display-notice"><MonitorUp size={18}/><div><strong>Видеоканал выведен на дополнительный монитор</strong><span>Камера продолжает работать на дополнительном экране; поток не останавливается при переключении его режима.</span></div></div>}
+        {<div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>}{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
         <section className="events-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ПОСЛЕДНЯЯ АКТИВНОСТЬ</span><h2>События доступа</h2></div><span className="event-count">{logs.length} ЗАПИСЕЙ</span></div>
