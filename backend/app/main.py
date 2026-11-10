@@ -614,14 +614,15 @@ async def access_check(body: AccessCheckRequest):
             "face_runtime_unavailable",
         )
     else:
-        result = access_policy.evaluate(ctx)
+        result = access_policy.evaluate(ctx, defer_commit=True)
     hardware_ack = None
     if result.decision == AccessDecision.ALLOW:
         try:
             hardware_ack = await request_hardware_unlock(body.door_id)
+            result = access_policy.commit_success(ctx)
         except Exception as exc:
             access_policy.register_denied(ctx, "hardware_controller_failure")
-            code = "hardware_ack_invalid" if str(exc) == "controller_ack_invalid" else "hardware_controller_unavailable"
+            code = "hardware_ack_invalid" if str(exc) in {"controller_ack_invalid", "controller_ack_timeout"} else "hardware_controller_unavailable"
             message = "Контроллер не подтвердил физическое состояние двери. Проход запрещён."
             result = AccessResult(AccessDecision.DENY, message, code)
             logger.warning(f"Hardware unlock fail-closed: {exc}")
@@ -767,7 +768,7 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
         }
 
     ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
-    policy_result = access_policy.evaluate(ctx)
+    policy_result = access_policy.evaluate(ctx, defer_commit=True)
     final_decision = policy_result.decision
     final_code = policy_result.code
     final_reason = policy_result.reason
@@ -778,9 +779,15 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
     if final_decision == AccessDecision.ALLOW:
         try:
             hardware_ack = await request_hardware_unlock(body.door_id)
+            committed = access_policy.commit_success(ctx)
+            if committed.decision != AccessDecision.ALLOW:
+                final_decision = AccessDecision.DENY
+                final_code = committed.code
+                final_reason = committed.reason
+                access_policy.register_denied(ctx, final_code)
         except Exception as exc:
             final_decision = AccessDecision.DENY
-            final_code = "hardware_ack_invalid" if str(exc) == "controller_ack_invalid" else "hardware_controller_unavailable"
+            final_code = "hardware_ack_invalid" if str(exc) in {"controller_ack_invalid", "controller_ack_timeout"} else "hardware_controller_unavailable"
             final_reason = "Контроллер не подтвердил физическое состояние двери. Проход запрещён."
             access_policy.register_denied(ctx, final_code)
             logger.warning(f"Hardware unlock fail-closed: {exc}")
