@@ -300,6 +300,7 @@ async def verify_liveness(body: LivenessVerifyRequest, request: Request):
             "insufficient_frames": "Недостаточно кадров для проверки. Повторите действие.",
             "challenge_sequence_mismatch": "Последовательность действий не совпала с заданием. Начните заново.",
             "liveness_engine_unavailable": "Модуль проверки присутствия временно недоступен.",
+            "liveness_model_missing": "Не установлена локальная модель распознавания лица. Выполните: python scripts/download_models.py в папке backend.",
         }.get(reason, reason)
         raise HTTPException(status_code=422, detail={
             "code": reason,
