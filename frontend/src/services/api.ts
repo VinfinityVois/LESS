@@ -90,7 +90,7 @@ export async function bootstrapAdmin(body: { username: string; display_name: str
   setAuthToken(data.access_token);
   return data;
 }
-export async function loginAdmin(body: { username: string; password: string }) {
+export async function loginAdmin(body: { username: string; password: string; remember_me?: boolean }) {
   const { data } = await api.post<AuthResult>("/api/auth/login", body);
   setAuthToken(data.access_token);
   return data;
