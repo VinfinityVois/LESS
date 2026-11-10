@@ -87,8 +87,8 @@ async def protect_control_plane(request: Request, call_next):
             return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для биометрической регистрации."})
         if path.startswith("/api/auth/admins") and actor["role"] != "superadmin":
             return JSONResponse(status_code=403, content={"detail": "Управлять администраторами может только суперадминистратор."})
-        if path.startswith("/api/access/guest-codes") and request.method == "POST" and actor["role"] == "security":
-            return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для выдачи гостевых пропусков."})
+        if path.startswith("/api/access/guest-codes") and request.method in {"POST", "PATCH", "DELETE"} and actor["role"] == "security":
+            return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для управления гостевыми пропусками."})
     response = await call_next(request)
     actor = getattr(request.state, "admin", None)
     if actor and request.method in {"POST", "PATCH", "DELETE"} and response.status_code < 400:
@@ -478,6 +478,25 @@ async def create_guest_code(body: GuestCodeCreate):
 @app.get("/api/access/guest-codes")
 async def list_guest_codes():
     return {"codes": access_policy.list_guest_codes()}
+
+
+class GuestPassAction(BaseModel):
+    action: str = Field(pattern="^(close|block|restore|reset|extend)$")
+    hours: float = Field(default=2, ge=0.1, le=720)
+
+
+@app.patch("/api/access/guest-codes/{pass_id}")
+async def update_guest_code(pass_id: int, body: GuestPassAction):
+    if not db_service.update_guest_pass(pass_id, body.action, body.hours):
+        raise HTTPException(status_code=404, detail="Гостевой пропуск не найден.")
+    return {"success": True, "codes": db_service.list_guest_passes()}
+
+
+@app.delete("/api/access/guest-codes/{pass_id}")
+async def delete_guest_code(pass_id: int):
+    if not db_service.update_guest_pass(pass_id, "delete"):
+        raise HTTPException(status_code=404, detail="Гостевой пропуск не найден.")
+    return {"success": True}
 
 
 @app.websocket("/ws")
