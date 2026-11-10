@@ -14,7 +14,7 @@ export async function openCameraOnExternalDisplay(mode: "video" | "events" = "vi
   if (existing) {
     const channel = new BroadcastChannel("less-external-display");
     channel.postMessage({ type: "set-mode", mode });
-    channel.close();
+    window.setTimeout(() => channel.close(), 250);
     await existing.setFocus();
     await existing.setFullscreen(true);
     return;
