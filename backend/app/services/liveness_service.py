@@ -78,7 +78,7 @@ class LivenessService:
         width = np.linalg.norm(np.array([left.x - right.x, left.y - right.y]))
         return float(height / max(width, 1e-6))
 
-    def _landmarks(self, frame_data: str, landmarker: Any) -> list[Any]:
+    def _landmarks(self, frame_data: str, landmarker: Any) -> dict[str, Any]:
         if not isinstance(frame_data, str) or "," not in frame_data:
             raise ValueError("Некорректный кадр проверки присутствия.")
         try:
@@ -140,7 +140,7 @@ class LivenessService:
                     samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p["landmarks"], (33, 160, 158, 133, 153, 144)) + self._ear(p["landmarks"], (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
-                        # Eight samples across ~1.5s make a short blink less likely to
+                        # Twelve samples across ~1.5s make a short blink less likely to
                         # fall between frames. Keep both an open-eye and closed-eye
                         # observation; a small noisy landmark fluctuation is not enough.
                         peak, trough = max(ears), min(ears)
