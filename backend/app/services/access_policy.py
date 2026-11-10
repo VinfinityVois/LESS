@@ -97,7 +97,7 @@ class AccessPolicyService:
         self.failed_window_minutes = 30
         self.dual_timeout_seconds = 60
 
-    def evaluate(self, ctx: AccessContext) -> AccessResult:
+    def evaluate(self, ctx: AccessContext, defer_commit: bool = False) -> AccessResult:
         subject = self._subject_key(ctx)
         r = self._check_lockout(subject, ctx)
         if r.decision == AccessDecision.DENY:
@@ -125,15 +125,25 @@ class AccessPolicyService:
             r = self._check_dual_control(door, ctx)
             if r.decision == AccessDecision.DENY:
                 return r
-        if ctx.guest_code:
-            guest = db_service.get_guest_pass_by_code(ctx.guest_code)
-            if not guest or not db_service.consume_guest_pass(guest["id"]):
-                return AccessResult(AccessDecision.DENY, "Гостевой пропуск уже использован или отключён", "guest_unavailable")
-        self._on_success(ctx, door)
+        if not defer_commit:
+            committed = self.commit_success(ctx)
+            if committed.decision == AccessDecision.DENY:
+                return committed
         return AccessResult(
             AccessDecision.ALLOW, "Доступ разрешён", "ok",
             details={"door_id": ctx.door_id, "direction": ctx.direction.value, "user_id": ctx.user_id},
         )
+
+    def commit_success(self, ctx: AccessContext) -> AccessResult:
+        if ctx.guest_code:
+            guest = db_service.get_guest_pass_by_code(ctx.guest_code)
+            if not guest or not db_service.consume_guest_pass(guest["id"]):
+                return AccessResult(AccessDecision.DENY, "Гостевой пропуск уже использован или отключён", "guest_unavailable")
+        door = self.doors.get(ctx.door_id)
+        if not door:
+            return AccessResult(AccessDecision.DENY, f"Неизвестная дверь: {ctx.door_id}", "unknown_door")
+        self._on_success(ctx, door)
+        return AccessResult(AccessDecision.ALLOW, "Доступ разрешён", "ok")
 
     def check_subject_lockout(self, ctx: AccessContext) -> AccessResult:
         return self._check_lockout(self._subject_key(ctx), ctx)
