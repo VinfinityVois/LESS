@@ -75,7 +75,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ИДЕНТИФИКАЦИЯ</span><h2>Факторы проверки</h2></div><span className="standby-pill">STANDBY</span></div>
           <div className="factor-list">
             <Factor icon={Nfc} label="NFC-карта / браслет" detail="Ожидание UID от считывателя" state={serialOk ? "ready" : "waiting"} />
-            <Factor icon={ScanFace} label="Распознавание лица" detail="Камера и AI-модуль" state={cameraOk && aiOk ? "ready" : "waiting"} />
+            <Factor icon={ScanFace} label="Распознавание лица" detail="Шаблоны регистрируются; runtime-match пока отключён" state="stub" />
             <Factor icon={LockKeyhole} label="PIN-код" detail="Второй фактор подтверждения" state="waiting" />
             <Factor icon={Fingerprint} label="Отпечаток пальца" detail="Временная программная заглушка" state="stub" />
           </div>

@@ -417,7 +417,14 @@ async def access_check(body: AccessCheckRequest):
         guest_code=body.guest_code,
         factor=body.factor,
     )
-    result = access_policy.evaluate(ctx)
+    if body.factor.lower() in {"face", "biometric", "face_biometric"}:
+        result = AccessResult(
+            AccessDecision.DENY,
+            "Runtime-распознавание лица не подключено к проверке прохода.",
+            "face_runtime_unavailable",
+        )
+    else:
+        result = access_policy.evaluate(ctx)
     event = "granted" if result.decision == AccessDecision.ALLOW else "denied"
     db_service.log_access(
         nfc_uid=body.nfc_uid or body.guest_code or "",
