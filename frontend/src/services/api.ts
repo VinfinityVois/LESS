@@ -255,6 +255,24 @@ export async function createGuestCode(body: {
   return data;
 }
 
+
+export interface GuestPass {
+  id: number; code_prefix: string; label: string; expires_at: string; max_uses: number;
+  uses: number; door_ids: string[]; status: "active" | "closed" | "blocked"; active: boolean; created_at: string;
+}
+export async function listGuestPasses() {
+  const { data } = await api.get<{ codes: GuestPass[] }>("/api/access/guest-codes");
+  return data.codes;
+}
+export async function updateGuestPass(id: number, action: "close" | "block" | "restore" | "reset" | "extend", hours = 2) {
+  const { data } = await api.patch("/api/access/guest-codes/" + id, { action, hours });
+  return data;
+}
+export async function deleteGuestPass(id: number) {
+  const { data } = await api.delete("/api/access/guest-codes/" + id);
+  return data;
+}
+
 export async function listDoors() {
   const { data } = await api.get("/api/access/doors");
   return data;
