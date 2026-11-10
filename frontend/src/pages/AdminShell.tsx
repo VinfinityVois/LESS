@@ -103,6 +103,15 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     finally { setGuestActionBusy(null); }
   };
 
+  const confirmGuestDialog = () => {
+    if (!guestDialog) return;
+    const current = guestDialog;
+    const hours = Number(guestDialogHours);
+    if (current.action === "extend" && (!Number.isFinite(hours) || hours <= 0 || hours > 720)) return;
+    setGuestDialog(null);
+    void runGuestAction(current.id, current.action, hours);
+  };
+
   const diagnosticItems = [
     { label: "Сервис приложения", value: backendOnline ? "Доступен" : "Нет соединения", ok: backendOnline, icon: Server, detail: "FastAPI · 127.0.0.1:8000" },
     { label: "Видеоканал", value: cameraOk ? "Доступен" : status?.camera === "stopped" ? "Остановлен" : "Не подтверждён", ok: cameraOk, icon: Camera, detail: "OpenCV · USB camera" },
@@ -133,7 +142,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
         {nav === "diagnostics" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">СИСТЕМНЫЙ КОНТРОЛЬ</span><h1>Состояние оборудования</h1><p>Сводка доступности локальных компонентов СКУД.</p></div></div><div className="diagnostic-grid">{diagnosticItems.map((item) => { const Icon = item.icon; return <div className="diagnostic-card" key={item.label}><div className="diagnostic-card__top"><span className="diagnostic-card__icon"><Icon size={18} /></span><span className={`diagnostic-pill ${item.ok ? "is-ok" : "is-wait"}`}>{item.ok ? "АКТИВЕН" : "ОЖИДАНИЕ"}</span></div><strong>{item.label}</strong><b>{item.value}</b><small>{item.detail}</small></div>; })}</div></section>}
       </main>
     </section>
-    {guestDialog && <div className="operator-dialog-backdrop"><section className="operator-dialog" role="dialog" aria-modal="true" aria-labelledby="guest-dialog-title"><span className="eyebrow">УПРАВЛЕНИЕ ПРОПУСКОМ · #{guestDialog.id}</span><h2 id="guest-dialog-title">{guestDialog.action === "delete" ? "Удалить гостевой пропуск?" : "Продлить срок действия"}</h2><p>{guestDialog.action === "delete" ? "Пропуск будет удалён без возможности восстановления. История его использования останется в журнале." : "Укажите, на сколько часов продлить действие пропуска."}</p>{guestDialog.action === "extend" && <label className="operator-dialog-field">СРОК ПРОДЛЕНИЯ · ЧАСЫ<input type="number" min="0.1" max="720" step="0.5" value={guestDialogHours} onChange={(event)=>setGuestDialogHours(event.target.value)}/></label>}<div className="operator-dialog-actions"><button className="users-button" onClick={()=>setGuestDialog(null)}>Отмена</button><button className={guestDialog.action === "delete" ? "users-button users-button--danger" : "users-button users-button--primary"} onClick={()=>{const current=guestDialog;const hours=Number(guestDialogHours);if(current.action==="extend"&&(!Number.isFinite(hours)||hours<=0||hours>720))return;setGuestDialog(null);void runGuestAction(current.id,current.action,hours);}}>{guestDialog.action === "delete" ? "Удалить пропуск" : "Продлить"}</button></div></section></div>}
+    {guestDialog && <div className="operator-dialog-backdrop"><section className="operator-dialog" role="dialog" aria-modal="true" aria-labelledby="guest-dialog-title"><span className="eyebrow">УПРАВЛЕНИЕ ПРОПУСКОМ · #{guestDialog.id}</span><h2 id="guest-dialog-title">{guestDialog.action === "delete" ? "Удалить гостевой пропуск?" : "Продлить срок действия"}</h2><p>{guestDialog.action === "delete" ? "Пропуск будет удалён без возможности восстановления. История его использования останется в журнале." : "Укажите, на сколько часов продлить действие пропуска."}</p>{guestDialog.action === "extend" && <label className="operator-dialog-field">СРОК ПРОДЛЕНИЯ · ЧАСЫ<input type="number" min="0.1" max="720" step="0.5" value={guestDialogHours} onChange={(event)=>setGuestDialogHours(event.target.value)}/></label>}<div className="operator-dialog-actions"><button className="users-button" onClick={()=>setGuestDialog(null)}>Отмена</button><button className={guestDialog.action === "delete" ? "users-button users-button--danger" : "users-button users-button--primary"} onClick={confirmGuestDialog}>{guestDialog.action === "delete" ? "Удалить пропуск" : "Продлить"}</button></div></section></div>}
     {enrollUser && <FaceEnroll userId={enrollUser.id} userName={enrollUser.name || enrollUser.nfc_uid} onDone={() => { setEnrollUser(null); window.dispatchEvent(new Event("less:users-refresh")); }} onCancel={() => setEnrollUser(null)} />}
   </div>;
 }
