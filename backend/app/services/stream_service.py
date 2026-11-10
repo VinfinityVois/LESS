@@ -7,6 +7,7 @@ from typing import Set
 from fastapi import WebSocket
 import asyncio
 from app.services.camera_service import camera_service
+from app.services.face_recognition_service import face_recognition_service
 
 
 class StreamService:
@@ -71,12 +72,28 @@ class StreamService:
         logger.info("Видеострим запущен")
 
         try:
+            frame_index = 0
+            model_notice_sent = False
             while self.is_streaming and self.clients:
                 frame = camera_service.read_frame()
                 if frame is not None:
                     jpeg = camera_service.encode_jpeg(frame)
                     if jpeg:
                         await self.broadcast_bytes(jpeg)
+                    frame_index += 1
+                    # Run detector on a subset of frames to keep camera streaming responsive.
+                    if frame_index % 5 == 0:
+                        if not face_recognition_service.ready:
+                            if not model_notice_sent:
+                                await self.broadcast_json({"type": "face_detection", "available": False, "faces": []})
+                                model_notice_sent = True
+                        else:
+                            try:
+                                faces = face_recognition_service.detect_faces(frame)
+                                await self.broadcast_json({"type": "face_detection", "available": True, "faces": faces})
+                            except Exception as exc:
+                                logger.warning(f"YuNet live detection unavailable: {exc}")
+                                await self.broadcast_json({"type": "face_detection", "available": False, "faces": []})
                 await asyncio.sleep(1 / 15)
         except asyncio.CancelledError:
             pass
