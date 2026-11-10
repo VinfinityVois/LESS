@@ -1,11 +1,11 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   History, ShieldCheck, LockKeyhole, UserRoundSearch, Fingerprint,
   Nfc, Camera, ScanFace, CircleAlert, ArrowUpRight, MonitorUp,
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
-import { getLogs, listUsers, simulateTestCard, type AccessLog, type SystemStatus, type User } from "../services/api";
+import { getLogs, listUsers, simulateTestCard, readSerialCardLine, createFaceAccessChallenge, checkFaceAccess, type FaceAccessChallenge, type AccessLog, type SystemStatus, type User } from "../services/api";
 
 function fmt(iso?: string | null) {
   if (!iso) return "—";
@@ -25,6 +25,16 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
   const [testCardBusy, setTestCardBusy] = useState(false);
+  const latestFrameRef = useRef<Blob | null>(null);
+  const seenCardRef = useRef("");
+  const challengeBusyRef = useRef(false);
+  const [faceChallenge, setFaceChallenge] = useState<FaceAccessChallenge | null>(null);
+  const [challengeEvidence, setChallengeEvidence] = useState<{action:string;frames:string[]}[]>([]);
+  const [challengeStep, setChallengeStep] = useState(0);
+  const [capturePercent, setCapturePercent] = useState(0);
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [accessResult, setAccessResult] = useState<any>(null);
+  const [currentSubject, setCurrentSubject] = useState<any>(null);
   const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
     const saved = localStorage.getItem("less-external-display-mode");
     return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
