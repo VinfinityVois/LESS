@@ -2,8 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
+html, body, #root {
   margin: 0;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
-  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  background: #0f131c;
+}
+
+body {
+  font-family: Inter, system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-thumb { background: #31353e; border-radius: 3px; }
+
+.font-mono-label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.font-display {
+  font-family: "Space Grotesk", Inter, sans-serif;
 }
