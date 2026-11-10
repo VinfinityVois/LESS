@@ -134,6 +134,10 @@ class AdminAuthService:
         username, now = username.strip(), self._now()
         now_s = self._iso(now)
         with self._conn() as conn:
+            conn.execute(
+                "DELETE FROM admin_sessions WHERE expires_at<=? OR revoked_at IS NOT NULL",
+                (now_s,),
+            )
             attempt = conn.execute("SELECT * FROM admin_login_attempts WHERE username=?", (username,)).fetchone()
             if attempt and attempt["locked_until"] and attempt["locked_until"] > now_s:
                 return None
