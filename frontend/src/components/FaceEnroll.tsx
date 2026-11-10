@@ -34,8 +34,12 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
 
   useEffect(() => {
     let cancelled = false;
+    const cameraChannel = new BroadcastChannel("less-camera-control");
     const start = async () => {
       try {
+        // Release the shared OpenCV/WebSocket camera before WebView requests the same device.
+        cameraChannel.postMessage({ type: "pause-camera" });
+        await new Promise((resolve) => window.setTimeout(resolve, 650));
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
           navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
@@ -76,6 +80,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         };
         tick();
       } catch (e: any) {
+        cameraChannel.postMessage({ type: "resume-camera" });
         setCameraError(e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица.");
         setStage("error");
       }
@@ -86,6 +91,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       cancelAnimationFrame(rafRef.current);
       landmarkerRef.current?.close();
       streamRef.current?.getTracks().forEach((track) => track.stop());
+      cameraChannel.postMessage({ type: "resume-camera" });
+      cameraChannel.close();
     };
   }, [cameraAttempt]);
 
