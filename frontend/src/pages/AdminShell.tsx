@@ -5,7 +5,6 @@ import {
   ChevronRight, Activity, Fingerprint, Camera, Menu, PanelLeftClose, PanelLeftOpen, LogOut,
 } from "lucide-react";
 import { useSystemStore } from "../stores/systemStore";
-import { ru } from "../i18n/ru";
 import type { AdminAccount, User as UserType } from "../services/api";
 import { createGuestCode } from "../services/api";
 import LivePage from "./LivePage";
