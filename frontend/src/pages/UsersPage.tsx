@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Search, Plus, Upload, UserRound, ShieldCheck, Pencil, Trash2, ScanFace, X, ChevronLeft, FileUp, Clock3, CalendarDays, Camera } from "lucide-react";
+import { Search, Plus, Upload, UserRound, Pencil, Trash2, ScanFace, X, ChevronLeft, FileUp, Clock3, CalendarDays } from "lucide-react";
 import { listUsers, createUser, updateUser, deleteUser, getUser, type User as UserType } from "../services/api";
 
 type UserForm = { name: string; position: string; nfc_uid: string; pin: string };
@@ -78,7 +78,7 @@ export default function UsersPage({ onEnroll }: { onEnroll: (user: UserType) => 
     setBusy(true); setMessage(""); setError("");
     try {
       const text = await file.text();
-      const rows = file.name.toLowerCase().endsWith(".json")
+      const rows: Array<Record<string, unknown>> = file.name.toLowerCase().endsWith(".json")
         ? JSON.parse(text) as Array<Record<string, unknown>>
         : text.split(/\r?\n/).filter(Boolean).slice(1).map((line) => {
             const [name, position, nfc_uid, pin] = line.split(/[;,]/).map((v) => v.trim().replace(/^["']|["']$/g, ""));
