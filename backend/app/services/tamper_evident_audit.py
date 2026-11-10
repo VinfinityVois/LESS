@@ -25,12 +25,19 @@ class TamperEvidentAudit:
     def __init__(self) -> None:
         self.path: Path = settings.DATA_DIR / "security_audit.jsonl"
         self._lock = threading.RLock()
-        self._key = self._derive_key()
         self._last_hash = self.GENESIS
         self._sequence = 0
         self._healthy = True
+        self._configuration_error = None
+        try:
+            self._key = self._derive_key()
+        except RuntimeError as exc:
+            self._key = None
+            self._healthy = False
+            self._configuration_error = str(exc)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._verify_and_load()
+        if self._key:
+            self._verify_and_load()
 
     def _derive_key(self) -> bytes:
         secret = (settings.AUDIT_HMAC_KEY or "").strip()
@@ -50,6 +57,8 @@ class TamperEvidentAudit:
         return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
 
     def _record_hash(self, body: dict[str, Any]) -> str:
+        if not self._key:
+            raise RuntimeError(self._configuration_error or "Ключ защищённого аудита не настроен.")
         return hmac.new(self._key, self._canonical(body), hashlib.sha256).hexdigest()
 
     def _verify_and_load(self) -> None:
@@ -79,7 +88,7 @@ class TamperEvidentAudit:
     def append(self, event: str, actor_id: int | None = None, target: str = "", details: Any = None) -> dict[str, Any]:
         with self._lock:
             if not self._healthy:
-                raise RuntimeError("Защищённый аудит недоступен: обнаружено повреждение цепочки.")
+                raise RuntimeError(self._configuration_error or "Защищённый аудит недоступен: обнаружено повреждение цепочки.")
             body = {
                 "sequence": self._sequence + 1,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -108,6 +117,8 @@ class TamperEvidentAudit:
 
     def verify(self) -> dict[str, Any]:
         with self._lock:
+            if not self._key:
+                return {"valid": False, "records": 0, "error": self._configuration_error or "Ключ аудита не настроен."}
             previous = self.GENESIS
             sequence = 0
             try:
