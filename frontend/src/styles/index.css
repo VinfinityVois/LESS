@@ -156,3 +156,9 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .external-display-notice strong{font-size:11px;color:#d7e8e7}
 .external-display-notice span{margin-top:4px;font-size:9px;color:#81969b}
 @media(max-width:850px){.live-grid--external{grid-template-columns:1fr}.live-grid--external .verification-column{overflow:visible}}
+
+
+/* Portrait-oriented camera composition on the auxiliary display, even on a landscape panel. */
+.camera-display__viewport img,.camera-display__viewport video{
+  width:auto!important;height:100%!important;max-width:100%;aspect-ratio:9/16;object-fit:cover!important;
+}
