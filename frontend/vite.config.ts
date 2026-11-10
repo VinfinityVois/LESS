@@ -7,6 +7,10 @@ export default defineConfig({
   server: {
     port: 1420,
     strictPort: true,
+    watch: {
+      // Windows + Tauri: do not watch cargo DLL artifacts
+      ignored: ["**/src-tauri/**", "**/node_modules/**"],
+    },
   },
   envPrefix: ["VITE_", "TAURI_"],
   build: {
