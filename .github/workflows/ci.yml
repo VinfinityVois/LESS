@@ -22,8 +22,15 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Regenerate lockfile with patched dependency versions
+        run: npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: less-frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
 
   backend-syntax:
     runs-on: ubuntu-latest
@@ -43,6 +50,9 @@ jobs:
           node-version: 20
           cache: npm
           cache-dependency-path: frontend/package-lock.json
+      - name: Resolve patched frontend dependency tree
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts
       - name: Audit frontend dependencies
         working-directory: frontend
         run: npm audit --audit-level=high
