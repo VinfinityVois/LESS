@@ -1,7 +1,7 @@
 import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { availableMonitors, currentMonitor } from "@tauri-apps/api/window";
 
-export async function openCameraOnExternalDisplay(): Promise<void> {
+export async function openCameraOnExternalDisplay(mode: "video" | "events" = "video"): Promise<void> {
   const monitors = await availableMonitors();
   if (monitors.length < 2) {
     throw new Error("Подключённый дополнительный монитор не обнаружен.");
@@ -12,13 +12,16 @@ export async function openCameraOnExternalDisplay(): Promise<void> {
   const size = target.size.toLogical(target.scaleFactor);
   const existing = await WebviewWindow.getByLabel("less-camera-display");
   if (existing) {
+    const channel = new BroadcastChannel("less-external-display");
+    channel.postMessage({ type: "set-mode", mode });
+    channel.close();
     await existing.setFocus();
     await existing.setFullscreen(true);
     return;
   }
 
   const display = new WebviewWindow("less-camera-display", {
-    url: "/?display=camera",
+    url: "/?display=camera&mode=" + mode,
     title: "LESS — Видеонаблюдение",
     x: position.x,
     y: position.y,
