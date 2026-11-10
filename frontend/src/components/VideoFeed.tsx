@@ -10,6 +10,12 @@ export default function VideoFeed() {
   const lastFpsTime = useRef(Date.now());
 
   useEffect(() => {
+    let paused = false;
+    const channel = new BroadcastChannel("less-camera-control");
+    channel.onmessage = (event) => {
+      if (event.data?.type === "pause-camera" && !paused) { paused = true; lessWs.disconnect(); }
+      if (event.data?.type === "resume-camera" && paused) { paused = false; lessWs.connect(); }
+    };
     lessWs.onFrame((blob) => {
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
@@ -33,6 +39,7 @@ export default function VideoFeed() {
     lessWs.connect();
 
     return () => {
+      channel.close();
       lessWs.disconnect();
       if (urlRef.current) {
         URL.revokeObjectURL(urlRef.current);
