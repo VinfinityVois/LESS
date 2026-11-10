@@ -10,6 +10,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import VerificationError, VerifyMismatchError
 from app.config import settings
 from app.services.database import sqlite3, connect_encrypted
+from app.services.tamper_evident_audit import audit_journal
 
 
 class AdminAuthService:
@@ -187,9 +188,16 @@ class AdminAuthService:
                          (self._iso(self._now()), self._token_hash(token)))
 
     def audit(self, admin_id: Optional[int], action: str, target: str = "", details: str = "") -> None:
+        created_at = self._iso(self._now())
+        audit_journal.append(
+            "admin.audit",
+            actor_id=admin_id,
+            target=target,
+            details={"action": action, "details": details, "timestamp": created_at},
+        )
         with self._conn() as conn:
             conn.execute("INSERT INTO admin_audit(admin_id,action,target,details,created_at) VALUES(?,?,?,?,?)",
-                         (admin_id, action, target, details, self._iso(self._now())))
+                         (admin_id, action, target, details, created_at))
 
     def get_audit(self, limit: int = 100) -> list[dict[str, Any]]:
         with self._conn() as conn:
