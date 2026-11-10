@@ -11,8 +11,6 @@ on:
 
 jobs:
   frontend:
-    permissions:
-      contents: write
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -28,16 +26,6 @@ jobs:
         run: npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - run: npm run build
-      - name: Commit regenerated lockfile on the feature branch
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/admin-users-biometric-workflow'
-        run: |
-          if ! git diff --quiet -- frontend/package-lock.json; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add frontend/package-lock.json
-            git commit -m "chore(deps): refresh frontend lockfile"
-            git push
-          fi
       - uses: actions/upload-artifact@v4
         with:
           name: less-frontend-package-lock
@@ -80,3 +68,27 @@ jobs:
         run: python -m pip install --upgrade pip pip-audit
       - name: Audit backend dependencies
         run: pip-audit -r backend/requirements.txt
+
+  persist-frontend-lockfile:
+    needs: frontend
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: less-frontend-package-lock
+          path: frontend
+      - name: Commit verified dependency lockfile
+        run: |
+          if ! git diff --quiet -- frontend/package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add frontend/package-lock.json
+            git commit -m "chore(deps): refresh frontend lockfile"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
