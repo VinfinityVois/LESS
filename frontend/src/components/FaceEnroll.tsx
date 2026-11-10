@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, FaceLandmarker } from "@mediapipe/tasks-vision";
-import { createLivenessChallenge, faceEnroll, verifyLiveness } from "../services/api";
+import { createLivenessChallenge, faceEnroll, getUser, verifyLiveness } from "../services/api";
 import { Camera, Check, CircleAlert, ScanFace, X, RotateCcw } from "lucide-react";
 
 type Shot = { dataUrl: string; quality: number; label: string; landmarks: number[][] };
@@ -34,11 +34,19 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
 
   useEffect(() => {
     let cancelled = false;
+    let cameraPaused = false;
     const cameraChannel = new BroadcastChannel("less-camera-control");
     const start = async () => {
       try {
-        // Release the shared OpenCV/WebSocket camera before WebView requests the same device.
+        const subject = await getUser(userId);
+        if (!subject || !subject.is_active || subject.deleted_at) {
+          setCameraError("Сотрудник не найден или отключён. Сначала создайте активную карточку сотрудника и повторите регистрацию биометрии.");
+          setStage("error");
+          return;
+        }
+        // Release the shared OpenCV/WebSocket camera only after the subject is confirmed.
         cameraChannel.postMessage({ type: "pause-camera" });
+        cameraPaused = true;
         await new Promise((resolve) => window.setTimeout(resolve, 1200));
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
@@ -80,7 +88,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         };
         tick();
       } catch (e: any) {
-        cameraChannel.postMessage({ type: "resume-camera" });
+        if (cameraPaused) {
+          cameraChannel.postMessage({ type: "resume-camera" });
+          cameraPaused = false;
+        }
         setCameraError(e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица.");
         setStage("error");
       }
@@ -91,7 +102,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       cancelAnimationFrame(rafRef.current);
       landmarkerRef.current?.close();
       streamRef.current?.getTracks().forEach((track) => track.stop());
-      cameraChannel.postMessage({ type: "resume-camera" });
+      if (cameraPaused) cameraChannel.postMessage({ type: "resume-camera" });
       cameraChannel.close();
     };
   }, [cameraAttempt]);
