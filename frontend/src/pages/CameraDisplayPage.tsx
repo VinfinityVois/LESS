@@ -13,7 +13,7 @@ export default function CameraDisplayPage() {
     const refresh = () => getLogs(30).then(setLogs).catch(() => setLogs([]));
     void refresh();
     const timer = window.setInterval(refresh, 3000);
-    return () => { channel.postMessage({ type: "closed" }); channel.close(); window.clearInterval(timer); };
+    return () => { channel.postMessage({ type: "closed" }); localStorage.removeItem("less-external-display-active"); localStorage.removeItem("less-external-display-mode"); channel.close(); window.clearInterval(timer); };
   }, []);
   const close = async () => {
     try { await getCurrentWindow().close(); }
