@@ -79,6 +79,40 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     return () => window.clearInterval(timer);
   }, [load]);
 
+  useEffect(() => {
+    if (!serialOk) return;
+    let active = true;
+    const timer = window.setInterval(async () => {
+      if (!active || challengeBusyRef.current || faceChallenge) return;
+      try {
+        const raw = await readSerialCardLine();
+        const uid = parseCardUid(raw);
+        if (!uid || uid === seenCardRef.current) return;
+        seenCardRef.current = uid;
+        challengeBusyRef.current = true;
+        setAccessResult(null);
+        setCurrentSubject(null);
+        setDisplayMessage("Карта считана. Запускается проверка лица и живого присутствия…");
+        try {
+          const challenge = await createFaceAccessChallenge({ nfc_uid: uid, door_id: "main", direction: "in" });
+          if (!active) return;
+          (challenge as any).nfc_uid = uid;
+          setFaceChallenge(challenge);
+          setChallengeEvidence([]);
+          setChallengeStep(0);
+          setCurrentSubject(challenge.user);
+          setDisplayMessage("");
+        } catch (error: any) {
+          const detail = error?.response?.data?.detail;
+          setAccessResult({ decision: "deny", code: detail?.code || "card_rejected", reason: detail?.message || detail || "Не удалось начать проверку лица." });
+          setDisplayMessage(detail?.message || detail || "Карта отклонена. Проход запрещён.");
+          seenCardRef.current = "";
+        } finally { challengeBusyRef.current = false; }
+      } catch { /* serial input may be empty between reads */ }
+    }, 300);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [serialOk, faceChallenge]);
+
   const openExternalDisplay = async (mode: "video" | "events") => {
     setDisplayBusy(true);
     setDisplayMessage("");
