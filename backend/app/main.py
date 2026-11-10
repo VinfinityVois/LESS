@@ -92,6 +92,9 @@ async def protect_control_plane(request: Request, call_next):
         if path.startswith("/api/access/guest-codes") and request.method in {"POST", "PATCH", "DELETE"} and actor["role"] == "security":
             return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для управления гостевыми пропусками."})
     response = await call_next(request)
+    if path.startswith("/api/"):
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
     actor = getattr(request.state, "admin", None)
     if actor and request.method in {"POST", "PATCH", "DELETE"} and response.status_code < 400:
         admin_auth_service.audit(actor["id"], f"api.{request.method.lower()}", path, f"status={response.status_code}")
@@ -353,10 +356,15 @@ async def create_user(body: UserCreateRequest):
 
 
 @app.get("/api/users/{user_id}")
-async def get_user(user_id: int):
+async def get_user(user_id: int, request: Request):
     user = db_service.get_user(user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Пользователь не найден.")
+    # Security operators can inspect a subject record, but biometric photographs
+    # are restricted to administrators with personnel-management privileges.
+    if request.state.admin["role"] == "security":
+        user.pop("photo_data_url", None)
+        user.pop("profile_photo_data_url", None)
     return user
 
 
