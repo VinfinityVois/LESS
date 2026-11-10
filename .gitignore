@@ -5,6 +5,10 @@ __pycache__/
 *.so
 .Python
 env/
+backend/.venv312/
+.venv312/
+backend/venv312/
+venv312/
 venv/
 .venv/
 ENV/
@@ -21,6 +25,7 @@ build/
 *.key
 *.pem
 backend/data/*.db
+backend/data/*.jsonl
 backend/data/keys/
 *.sqlite
 *.sqlite3
@@ -54,3 +59,9 @@ backend/logs/
 
 # Tauri
 frontend/src-tauri/WixTools/
+
+# Downloaded ML model assets (install with backend/scripts/download_models.py)
+backend/models/*.task
+
+# Downloaded YuNet/SFace ONNX model weights (install with backend/scripts/download_face_models.py)
+backend/models/*.onnx

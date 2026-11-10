@@ -7,6 +7,7 @@ from typing import Set
 from fastapi import WebSocket
 import asyncio
 from app.services.camera_service import camera_service
+from app.services.face_recognition_service import face_recognition_service
 
 
 class StreamService:
@@ -14,15 +15,31 @@ class StreamService:
         self.clients: Set[WebSocket] = set()
         self._streaming_task: asyncio.Task | None = None
         self.is_streaming = False
+        self._stop_requested = False
+
+    def request_start(self):
+        # Keep one camera capture task for all authenticated WebSocket clients.
+        self._stop_requested = False
+        if self._streaming_task and not self._streaming_task.done():
+            return
+        self._streaming_task = asyncio.create_task(self.start_camera_stream())
 
     async def connect(self, websocket: WebSocket):
+        # Accept first so the client can send its bearer token; do not register
+        # it as a stream consumer until authentication has succeeded.
         await websocket.accept()
+
+    def register(self, websocket: WebSocket):
         self.clients.add(websocket)
-        logger.info(f"Клиент видеопотока подключён. Всего: {len(self.clients)}")
+        logger.info(f"Авторизованный клиент видеопотока подключён. Всего: {len(self.clients)}")
 
     def disconnect(self, websocket: WebSocket):
         self.clients.discard(websocket)
         logger.info(f"Клиент видеопотока отключён. Осталось: {len(self.clients)}")
+        if not self.clients and self._streaming_task and not self._streaming_task.done():
+            self.is_streaming = False
+            self._stop_requested = True
+            self._streaming_task.cancel()
 
     async def broadcast_bytes(self, data: bytes):
         dead = []
@@ -55,12 +72,28 @@ class StreamService:
         logger.info("Видеострим запущен")
 
         try:
+            frame_index = 0
+            model_notice_sent = False
             while self.is_streaming and self.clients:
                 frame = camera_service.read_frame()
                 if frame is not None:
                     jpeg = camera_service.encode_jpeg(frame)
                     if jpeg:
                         await self.broadcast_bytes(jpeg)
+                    frame_index += 1
+                    # Run detector on a subset of frames to keep camera streaming responsive.
+                    if frame_index % 5 == 0:
+                        if not face_recognition_service.ready:
+                            if not model_notice_sent:
+                                await self.broadcast_json({"type": "face_detection", "available": False, "faces": []})
+                                model_notice_sent = True
+                        else:
+                            try:
+                                faces = await asyncio.to_thread(face_recognition_service.detect_faces, frame)
+                                await self.broadcast_json({"type": "face_detection", "available": True, "faces": faces})
+                            except Exception as exc:
+                                logger.warning(f"YuNet live detection unavailable: {exc}")
+                                await self.broadcast_json({"type": "face_detection", "available": False, "faces": []})
                 await asyncio.sleep(1 / 15)
         except asyncio.CancelledError:
             pass
@@ -68,9 +101,16 @@ class StreamService:
             self.is_streaming = False
             camera_service.stop()
             logger.info("Видеострим остановлен")
+            if self._streaming_task is asyncio.current_task():
+                self._streaming_task = None
+            # A display may reconnect while the previous task is releasing
+            # the device. Start a fresh capture only after that release finished.
+            if self.clients and not self._stop_requested:
+                self.request_start()
 
     def stop_stream(self):
         self.is_streaming = False
+        self._stop_requested = True
         if self._streaming_task and not self._streaming_task.done():
             self._streaming_task.cancel()
 

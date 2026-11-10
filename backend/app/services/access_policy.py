@@ -17,6 +17,7 @@ from loguru import logger
 import secrets
 import hashlib
 from app.config import settings
+from app.services.db_service import db_service
 
 
 class Direction(str, Enum):
@@ -96,7 +97,7 @@ class AccessPolicyService:
         self.failed_window_minutes = 30
         self.dual_timeout_seconds = 60
 
-    def evaluate(self, ctx: AccessContext) -> AccessResult:
+    def evaluate(self, ctx: AccessContext, defer_commit: bool = False) -> AccessResult:
         subject = self._subject_key(ctx)
         r = self._check_lockout(subject, ctx)
         if r.decision == AccessDecision.DENY:
@@ -124,38 +125,37 @@ class AccessPolicyService:
             r = self._check_dual_control(door, ctx)
             if r.decision == AccessDecision.DENY:
                 return r
-        self._on_success(ctx, door)
+        if not defer_commit:
+            committed = self.commit_success(ctx)
+            if committed.decision == AccessDecision.DENY:
+                return committed
         return AccessResult(
             AccessDecision.ALLOW, "Доступ разрешён", "ok",
             details={"door_id": ctx.door_id, "direction": ctx.direction.value, "user_id": ctx.user_id},
         )
 
+    def commit_success(self, ctx: AccessContext) -> AccessResult:
+        if ctx.guest_code:
+            guest = db_service.get_guest_pass_by_code(ctx.guest_code)
+            if not guest or not db_service.consume_guest_pass(guest["id"]):
+                return AccessResult(AccessDecision.DENY, "Гостевой пропуск уже использован или отключён", "guest_unavailable")
+        door = self.doors.get(ctx.door_id)
+        if not door:
+            return AccessResult(AccessDecision.DENY, f"Неизвестная дверь: {ctx.door_id}", "unknown_door")
+        self._on_success(ctx, door)
+        return AccessResult(AccessDecision.ALLOW, "Доступ разрешён", "ok")
+
+    def check_subject_lockout(self, ctx: AccessContext) -> AccessResult:
+        return self._check_lockout(self._subject_key(ctx), ctx)
+
     def register_denied(self, ctx: AccessContext, reason: str = "") -> None:
         self._register_failure(self._subject_key(ctx), ctx)
 
     def create_guest_code(self, label: str = "Гость", valid_hours: float = 2.0, max_uses: int = 1, door_ids: Optional[List[str]] = None) -> Dict[str, Any]:
-        raw = secrets.token_urlsafe(8).upper()[:10]
-        code_hash = self._hash_code(raw)
-        expires = datetime.now(timezone.utc) + timedelta(hours=valid_hours)
-        self._guest_codes[code_hash] = {
-            "label": label, "expires_at": expires, "max_uses": max_uses,
-            "uses": 0, "door_ids": door_ids or ["main"], "created_at": datetime.now(timezone.utc),
-        }
-        logger.info(f"Guest code created label={label} expires={expires.isoformat()}")
-        return {"code": raw, "label": label, "expires_at": expires.isoformat(), "max_uses": max_uses, "door_ids": door_ids or ["main"]}
+        return db_service.create_guest_pass(label, valid_hours, max_uses, door_ids or ["main"])
 
     def list_guest_codes(self) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc)
-        out = []
-        for h, meta in self._guest_codes.items():
-            out.append({
-                "code_hash_prefix": h[:8], "label": meta["label"],
-                "expires_at": meta["expires_at"].isoformat(), "max_uses": meta["max_uses"],
-                "uses": meta["uses"],
-                "active": meta["expires_at"] > now and meta["uses"] < meta["max_uses"],
-                "door_ids": meta["door_ids"],
-            })
-        return out
+        return db_service.list_guest_passes()
 
     def _subject_key(self, ctx: AccessContext) -> str:
         if ctx.user_id is not None:
@@ -167,25 +167,27 @@ class AccessPolicyService:
         return "unknown"
 
     def _check_lockout(self, subject: str, ctx: AccessContext) -> AccessResult:
-        until = self._locked_until.get(subject)
+        locked_until_value = db_service.get_access_lockout(subject)
+        until = datetime.fromisoformat(locked_until_value) if locked_until_value else None
         if until and ctx.now < until:
             left = int((until - ctx.now).total_seconds() // 60) + 1
             return AccessResult(AccessDecision.DENY, f"Заблокирован ещё ~{left} мин", "locked_out", details={"locked_until": until.isoformat()})
         if until and ctx.now >= until:
-            self._locked_until.pop(subject, None)
-            self._failed_attempts.pop(subject, None)
+            db_service.clear_access_failures(subject)
         return AccessResult(AccessDecision.ALLOW, "", "ok")
 
     def _register_failure(self, subject: str, ctx: AccessContext) -> None:
-        now = ctx.now
-        window_start = now - timedelta(minutes=self.failed_window_minutes)
-        attempts = [t for t in self._failed_attempts.get(subject, []) if t >= window_start]
-        attempts.append(now)
-        self._failed_attempts[subject] = attempts
-        if len(attempts) >= self.max_failed_attempts:
-            self._locked_until[subject] = now + timedelta(minutes=self.lockout_minutes)
-            logger.warning(f"LOCKOUT subject={subject} after {len(attempts)} failures")
-            self._notify_admin_lockout(subject, len(attempts))
+        failures, locked_until = db_service.record_access_failure(
+            subject_key=subject,
+            now=ctx.now,
+            window_seconds=self.failed_window_minutes * 60,
+            threshold=self.max_failed_attempts,
+            lock_seconds=self.lockout_minutes * 60,
+        )
+        if locked_until:
+            subject_fingerprint = hashlib.sha256(subject.encode("utf-8")).hexdigest()[:12]
+            logger.warning(f"LOCKOUT subject_hash={subject_fingerprint} after {failures} failures")
+            self._notify_admin_lockout(subject_fingerprint, failures)
 
     def _notify_admin_lockout(self, subject: str, count: int) -> None:
         logger.error(f"[ADMIN ALERT] Lockout: {subject}, failed={count}")
@@ -203,10 +205,10 @@ class AccessPolicyService:
     def _check_anti_passback(self, door: DoorPolicy, ctx: AccessContext) -> AccessResult:
         if ctx.user_id is None:
             return AccessResult(AccessDecision.ALLOW, "", "ok")
-        key = (ctx.user_id, door.door_id)
-        last = self._last_direction.get(key)
-        if last is None:
+        last_value = db_service.get_last_granted_direction(ctx.user_id, door.door_id)
+        if last_value not in {"in", "out"}:
             return AccessResult(AccessDecision.ALLOW, "", "ok")
+        last = Direction(last_value)
         if last == ctx.direction:
             needed = Direction.OUT if last == Direction.IN else Direction.IN
             return AccessResult(AccessDecision.DENY, f"Анти-пассбэк: ожидается «{needed.value}»", "anti_passback", details={"last": last.value, "requested": ctx.direction.value})
@@ -229,25 +231,24 @@ class AccessPolicyService:
         return AccessResult(AccessDecision.ALLOW, "Дуальный контроль пройден", "ok", details={"first_user_id": pending["user_id"], "second_user_id": ctx.user_id})
 
     def _check_guest_code(self, ctx: AccessContext) -> AccessResult:
-        h = self._hash_code(ctx.guest_code or "")
-        meta = self._guest_codes.get(h)
+        meta = db_service.get_guest_pass_by_code(ctx.guest_code or "")
         if not meta:
             return AccessResult(AccessDecision.DENY, "Неверный гостевой код", "guest_invalid")
-        if meta["expires_at"] <= ctx.now:
+        if meta["status"] == "blocked":
+            return AccessResult(AccessDecision.DENY, "Гостевой пропуск заблокирован", "guest_blocked")
+        if meta["status"] != "active":
+            return AccessResult(AccessDecision.DENY, "Гостевой пропуск закрыт", "guest_closed")
+        if datetime.fromisoformat(meta["expires_at"]) <= ctx.now:
             return AccessResult(AccessDecision.DENY, "Гостевой код истёк", "guest_expired")
         if meta["uses"] >= meta["max_uses"]:
-            return AccessResult(AccessDecision.DENY, "Код уже использован", "guest_exhausted")
+            return AccessResult(AccessDecision.DENY, "Лимит проходов исчерпан", "guest_exhausted")
         if ctx.door_id not in meta["door_ids"]:
             return AccessResult(AccessDecision.DENY, "Код не для этой двери", "guest_wrong_door")
-        meta["uses"] += 1
         return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"]})
 
     def _on_success(self, ctx: AccessContext, door: DoorPolicy) -> None:
-        if ctx.user_id is not None and door.anti_passback:
-            self._last_direction[(ctx.user_id, door.door_id)] = ctx.direction
         subject = self._subject_key(ctx)
-        self._failed_attempts.pop(subject, None)
-        self._locked_until.pop(subject, None)
+        db_service.clear_access_failures(subject)
 
     @staticmethod
     def _hash_code(raw: str) -> str:

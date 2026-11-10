@@ -10,14 +10,15 @@ pydantic-settings>=2.6.0
 pyserial>=3.5
 
 # Camera & Computer Vision
-opencv-python>=4.10.0
-mediapipe>=0.10.14
+opencv-contrib-python>=4.10.0,<5
+mediapipe==0.10.35
+protobuf>=5.29.6,<6
 numpy>=1.26.0
 Pillow>=10.4.0
 
-# Database
+# Database — bundled SQLCipher 4 wheels for Windows, macOS and Linux
 SQLAlchemy>=2.0.36
-# sqlcipher3>=0.5.0          # раскомментировать после установки системных зависимостей
+sqlcipher3==0.6.5
 
 # Cryptography
 argon2-cffi>=23.1.0

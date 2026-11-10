@@ -3,10 +3,8 @@
 """
 
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import VerificationError, VerifyMismatchError
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 import os
 import base64
 from app.config import settings
@@ -27,7 +25,7 @@ class CryptoService:
         try:
             self.ph.verify(hash_str, secret)
             return True
-        except VerifyMismatchError:
+        except (VerifyMismatchError, VerificationError, ValueError):
             return False
 
     def generate_key(self) -> bytes:

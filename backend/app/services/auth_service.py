@@ -5,6 +5,7 @@
 from loguru import logger
 from typing import Optional, Dict, Any
 from datetime import datetime, timezone
+import hashlib
 from app.services.crypto_service import crypto_service
 
 
@@ -17,7 +18,7 @@ class AuthService:
         """Начало аутентификации после чтения NFC."""
         self.pending_nfc = nfc_uid
         self.pending_since = datetime.now(timezone.utc)
-        logger.info(f"Начата 2FA для карты {nfc_uid}")
+        logger.info(f"Начата 2FA для карты hash={hashlib.sha256(nfc_uid.encode()).hexdigest()[:12]}")
         return {
             "status": "awaiting_second_factor",
             "nfc_uid": nfc_uid,
@@ -36,7 +37,7 @@ class AuthService:
         if factor_type in ("pin", "fingerprint") and stored_hash:
             ok = crypto_service.verify_secret(stored_hash, value)
             if not ok:
-                logger.warning(f"Неверный {factor_type} для {self.pending_nfc}")
+                logger.warning(f"Неверный {factor_type} для карты hash={hashlib.sha256(self.pending_nfc.encode()).hexdigest()[:12]}")
                 return {"success": False, "reason": "invalid_factor"}
 
         if factor_type == "face":
@@ -45,7 +46,7 @@ class AuthService:
         uid = self.pending_nfc
         self.pending_nfc = None
         self.pending_since = None
-        logger.info(f"Успешная 2FA для {uid} ({factor_type})")
+        logger.info(f"Успешная 2FA для карты hash={hashlib.sha256(uid.encode()).hexdigest()[:12]} ({factor_type})")
         return {
             "success": True,
             "nfc_uid": uid,

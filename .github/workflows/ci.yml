@@ -1,0 +1,108 @@
+name: LESS CI
+
+on:
+  pull_request:
+    branches:
+      - feat/control-room-redesign
+      - main
+  push:
+    branches:
+      - feat/admin-users-biometric-workflow
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Regenerate lockfile with patched dependency versions
+        run: npm install --package-lock-only --ignore-scripts
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: less-frontend-package-lock
+          path: frontend/package-lock.json
+          if-no-files-found: error
+
+  backend-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m compileall -q backend/app
+
+  backend-encryption-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install SQLCipher test dependencies
+        run: python -m pip install sqlcipher3==0.6.5 pydantic-settings loguru cryptography pyserial
+      - name: Test plaintext migration, encrypted backup and wrong-key rejection
+        env:
+          PYTHONPATH: backend
+        run: python -m unittest discover -s backend/tests -v
+
+  security-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Resolve patched frontend dependency tree
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Audit frontend dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  security-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Python dependency auditor
+        run: python -m pip install --upgrade pip pip-audit
+      - name: Audit backend dependencies
+        run: pip-audit -r backend/requirements.txt
+
+  persist-frontend-lockfile:
+    needs: frontend
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: less-frontend-package-lock
+          path: frontend
+      - name: Commit verified dependency lockfile
+        run: |
+          if ! git diff --quiet -- frontend/package-lock.json; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add frontend/package-lock.json
+            git commit -m "chore(deps): refresh frontend lockfile"
+            git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          fi
