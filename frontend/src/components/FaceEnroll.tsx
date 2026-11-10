@@ -92,7 +92,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
           cameraChannel.postMessage({ type: "resume-camera" });
           cameraPaused = false;
         }
-        setCameraError(e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица.");
+        setCameraError(e?.response?.data?.detail || (e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица."));
         setStage("error");
       }
     };
