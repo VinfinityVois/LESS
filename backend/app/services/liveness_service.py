@@ -46,8 +46,8 @@ class LivenessService:
     @staticmethod
     def _ear(points: list[Any], indexes: tuple[int, ...]) -> float:
         a, b, c, d, e, f = (points[i] for i in indexes)
-        vertical = np.linalg.norm(np.array([a.x - f.x, a.y - f.y])) + np.linalg.norm(np.array([b.x - e.x, b.y - e.y]))
-        horizontal = 2.0 * np.linalg.norm(np.array([c.x - d.x, c.y - d.y]))
+        vertical = np.linalg.norm(np.array([b.x - f.x, b.y - f.y])) + np.linalg.norm(np.array([c.x - e.x, c.y - e.y]))
+        horizontal = 2.0 * np.linalg.norm(np.array([a.x - d.x, a.y - d.y]))
         return float(vertical / max(horizontal, 1e-6))
 
     @staticmethod

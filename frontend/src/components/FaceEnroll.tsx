@@ -88,6 +88,15 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     };
   }, []);
 
+  useEffect(() => {
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (video && stream && video.srcObject !== stream) {
+      video.srcObject = stream;
+      void video.play().catch(() => setCameraError("Не удалось возобновить видеопоток камеры."));
+    }
+  }, [stage, modelReady]);
+
   const capture = () => {
     const video = videoRef.current, canvas = canvasRef.current;
     if (!video || !canvas || !faceFound) return;
