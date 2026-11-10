@@ -19,6 +19,8 @@ class LivenessService:
     TTL_SECONDS = 600
     PROOF_TTL_SECONDS = 600
     MAX_FRAME_BYTES = 1_500_000
+    MIN_ACTION_FRAMES = 8
+    MAX_ACTION_FRAMES = 12
     ACTIONS = ("blink", "turn_head", "open_mouth")
 
     def __init__(self) -> None:
@@ -111,8 +113,8 @@ class LivenessService:
             ) as mesh:
                 for action, item in zip(challenge["actions"], evidence):
                     frames = item.get("frames", [])
-                    if not isinstance(frames, list) or len(frames) < 4 or len(frames) > 8:
-                        return {"verified": False, "reason": "insufficient_frames", "action": action}
+                    if not isinstance(frames, list) or len(frames) < self.MIN_ACTION_FRAMES or len(frames) > self.MAX_ACTION_FRAMES:
+                        return {"verified": False, "reason": "insufficient_frames", "action": action, "received_frames": len(frames), "required_frames": self.MIN_ACTION_FRAMES}
                     samples = [self._landmarks(frame, mesh) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p, (33, 160, 158, 133, 153, 144)) + self._ear(p, (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
@@ -124,11 +126,11 @@ class LivenessService:
                         metric = round(peak - trough, 4)
                     elif action == "turn_head":
                         yaws = [self._yaw(p) for p in samples]
-                        passed = max(yaws) - min(yaws) > 0.12
+                        passed = max(yaws) - min(yaws) > 0.09
                         metric = round(max(yaws) - min(yaws), 4)
                     elif action == "open_mouth":
                         mouths = [self._mouth_open(p) for p in samples]
-                        passed = max(mouths) > 0.22 and min(mouths) < 0.16 and (max(mouths) - min(mouths)) > 0.10
+                        passed = max(mouths) > 0.20 and min(mouths) < 0.18 and (max(mouths) - min(mouths)) > 0.075
                         metric = round(max(mouths) - min(mouths), 4)
                     else:
                         passed, metric = False, 0.0
