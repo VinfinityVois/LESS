@@ -89,6 +89,12 @@ class DBService:
                     revoked_at TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 );
+                CREATE TABLE IF NOT EXISTS access_security_state (
+                    subject_key TEXT PRIMARY KEY,
+                    failures INTEGER NOT NULL DEFAULT 0,
+                    window_started_at TEXT NOT NULL,
+                    locked_until TEXT
+                );
             """)
             self._ensure_column(conn, "users", "position", "TEXT DEFAULT ''")
             self._ensure_column(conn, "users", "face_profile_embedding", "BLOB")
@@ -371,6 +377,58 @@ class DBService:
                 continue
         candidates.sort(key=lambda item: item["similarity"], reverse=True)
         return candidates[:limit]
+
+    def get_access_lockout(self, subject_key: str) -> Optional[str]:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT locked_until FROM access_security_state WHERE subject_key=?",
+                (subject_key,),
+            ).fetchone()
+            return row["locked_until"] if row else None
+
+    def record_access_failure(self, subject_key: str, now: datetime,
+                              window_seconds: int, threshold: int,
+                              lock_seconds: int) -> tuple[int, Optional[str]]:
+        now = now.astimezone(timezone.utc)
+        now_s = now.isoformat()
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT failures,window_started_at FROM access_security_state WHERE subject_key=?",
+                (subject_key,),
+            ).fetchone()
+            within_window = False
+            if row:
+                try:
+                    started = datetime.fromisoformat(row["window_started_at"])
+                    within_window = (now - started).total_seconds() < window_seconds
+                except (TypeError, ValueError):
+                    within_window = False
+            failures = (int(row["failures"]) if row and within_window else 0) + 1
+            started_at = row["window_started_at"] if row and within_window else now_s
+            locked_until = (now + timedelta(seconds=lock_seconds)).isoformat() if failures >= threshold else None
+            conn.execute(
+                """INSERT INTO access_security_state(subject_key,failures,window_started_at,locked_until)
+                   VALUES(?,?,?,?) ON CONFLICT(subject_key) DO UPDATE SET
+                   failures=excluded.failures,window_started_at=excluded.window_started_at,
+                   locked_until=excluded.locked_until""",
+                (subject_key, failures, started_at, locked_until),
+            )
+            return failures, locked_until
+
+    def clear_access_failures(self, subject_key: str) -> None:
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM access_security_state WHERE subject_key=?", (subject_key,))
+
+    def get_last_granted_direction(self, user_id: int, door_id: str) -> Optional[str]:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                """SELECT direction FROM access_logs
+                   WHERE user_id=? AND door_id=? AND event_type='granted'
+                     AND direction IN ('in','out')
+                   ORDER BY id DESC LIMIT 1""",
+                (user_id, door_id),
+            ).fetchone()
+            return row["direction"] if row else None
 
     def log_access(self, nfc_uid: str, event_type: str, factor_used: str = None,
                    reason: str = None, user_id: int = None, direction: str = None,
