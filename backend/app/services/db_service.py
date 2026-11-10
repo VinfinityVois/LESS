@@ -12,6 +12,8 @@ import hashlib
 import json
 import os
 import math
+import secrets
+from datetime import timedelta
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from app.config import settings
 
@@ -64,6 +66,19 @@ class DBService:
                     related_log_ids TEXT,
                     created_at TEXT NOT NULL,
                     is_resolved INTEGER DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS guest_passes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    code_hash TEXT NOT NULL UNIQUE,
+                    code_prefix TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    max_uses INTEGER NOT NULL DEFAULT 1,
+                    uses INTEGER NOT NULL DEFAULT 0,
+                    door_ids TEXT NOT NULL DEFAULT '["main"]',
+                    status TEXT NOT NULL DEFAULT 'active',
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT
                 );
                 CREATE TABLE IF NOT EXISTS biometric_consents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -232,6 +247,72 @@ class DBService:
                     "UPDATE users SET is_active=0,deleted_at=?,updated_at=? WHERE id=?",
                     (now, now, user_id),
                 )
+            return cur.rowcount > 0
+
+
+    @staticmethod
+    def _guest_hash(code: str) -> str:
+        return hashlib.sha256(code.strip().upper().encode()).hexdigest()
+
+    def create_guest_pass(self, label: str, valid_hours: float, max_uses: int, door_ids: List[str]) -> Dict[str, Any]:
+        code = secrets.token_urlsafe(8).upper()[:10]
+        now = datetime.now(timezone.utc)
+        expires = now + timedelta(hours=valid_hours)
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO guest_passes(code_hash,code_prefix,label,expires_at,max_uses,uses,door_ids,status,created_at) VALUES(?,?,?,?,?,0,?,'active',?)",
+                (self._guest_hash(code), code[-4:], label, expires.isoformat(), max_uses, json.dumps(door_ids or ["main"]), now.isoformat()),
+            )
+            pass_id = int(cur.lastrowid)
+        return {"id": pass_id, "code": code, "label": label, "expires_at": expires.isoformat(), "max_uses": max_uses, "uses": 0, "door_ids": door_ids or ["main"], "status": "active", "created_at": now.isoformat()}
+
+    def list_guest_passes(self) -> List[Dict[str, Any]]:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            rows = conn.execute("SELECT * FROM guest_passes ORDER BY id DESC").fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item["door_ids"] = json.loads(item["door_ids"] or '["main"]')
+            item["active"] = item["status"] == "active" and item["expires_at"] > now and item["uses"] < item["max_uses"]
+            item.pop("code_hash", None)
+            out.append(item)
+        return out
+
+    def get_guest_pass_by_code(self, code: str) -> Optional[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT * FROM guest_passes WHERE code_hash=?", (self._guest_hash(code),)).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["door_ids"] = json.loads(item["door_ids"] or '["main"]')
+        return item
+
+    def update_guest_pass(self, pass_id: int, action: str, hours: float = 0) -> bool:
+        now = datetime.now(timezone.utc)
+        with self._get_conn() as conn:
+            row = conn.execute("SELECT * FROM guest_passes WHERE id=?", (pass_id,)).fetchone()
+            if not row:
+                return False
+            if action == "delete":
+                cur = conn.execute("DELETE FROM guest_passes WHERE id=?", (pass_id,))
+                return cur.rowcount > 0
+            if action == "close":
+                status, uses, expires = "closed", row["uses"], row["expires_at"]
+            elif action == "block":
+                status, uses, expires = "blocked", row["uses"], row["expires_at"]
+            elif action == "restore":
+                status, uses, expires = "active", row["uses"], row["expires_at"]
+            elif action == "reset":
+                status, uses, expires = "active", 0, row["expires_at"]
+            elif action == "extend":
+                current = datetime.fromisoformat(row["expires_at"])
+                base = max(current, now)
+                status, uses, expires = "active", row["uses"], (base + timedelta(hours=max(0.1, hours))).isoformat()
+            else:
+                raise ValueError("Unknown guest pass action")
+            cur = conn.execute("UPDATE guest_passes SET status=?,uses=?,expires_at=?,updated_at=? WHERE id=?",
+                               (status, uses, expires, now.isoformat(), pass_id))
             return cur.rowcount > 0
 
     def record_biometric_consent(self, user_id: int, admin_id: int, purpose: str = "Регистрация биометрического шаблона") -> None:
