@@ -15,6 +15,12 @@ class StreamService:
         self._streaming_task: asyncio.Task | None = None
         self.is_streaming = False
 
+    def request_start(self):
+        # Keep one camera capture task for all authenticated WebSocket clients.
+        if self._streaming_task and not self._streaming_task.done():
+            return
+        self._streaming_task = asyncio.create_task(self.start_camera_stream())
+
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.clients.add(websocket)
@@ -23,6 +29,9 @@ class StreamService:
     def disconnect(self, websocket: WebSocket):
         self.clients.discard(websocket)
         logger.info(f"Клиент видеопотока отключён. Осталось: {len(self.clients)}")
+        if not self.clients and self._streaming_task and not self._streaming_task.done():
+            self.is_streaming = False
+            self._streaming_task.cancel()
 
     async def broadcast_bytes(self, data: bytes):
         dead = []
@@ -68,6 +77,8 @@ class StreamService:
             self.is_streaming = False
             camera_service.stop()
             logger.info("Видеострим остановлен")
+            if self._streaming_task is asyncio.current_task():
+                self._streaming_task = None
 
     def stop_stream(self):
         self.is_streaming = False
