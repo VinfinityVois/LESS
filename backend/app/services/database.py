@@ -115,14 +115,14 @@ def ensure_encrypted_database(db_path: Path | str, secret_key: str) -> None:
     temp_path = path.with_name(path.name + ".sqlcipher-migration.tmp")
     backup_path = path.with_name(path.name + ".pre-encryption-" + time.strftime("%Y%m%d-%H%M%S") + ".sqlcipher")
     backup_temp = backup_path.with_name(backup_path.name + ".tmp")
-    for candidate in (temp_path, backup_temp):
-        try:
-            candidate.unlink()
-        except FileNotFoundError:
-            pass
 
     source = None
     try:
+        for candidate in (temp_path, backup_temp):
+            try:
+                candidate.unlink()
+            except FileNotFoundError:
+                pass
         source = sqlite3.connect(str(path), timeout=10)
         source.execute("PRAGMA cipher_compatibility = 4")
         source.execute("PRAGMA temp_store = MEMORY")
