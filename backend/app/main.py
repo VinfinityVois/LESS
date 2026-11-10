@@ -200,11 +200,14 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest):
     if len(body.front_photo) > 8_000_000 or len(body.profile_photo) > 8_000_000:
         raise HTTPException(status_code=413, detail="Изображение превышает допустимый размер.")
     candidates = db_service.find_similar_faces(user_id=user_id, landmarks=body.front_landmarks, limit=5)
-    db_service.save_face_profile(
-        user_id=user_id, front_landmarks=body.front_landmarks,
-        profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
-        profile_photo=body.profile_photo,
-    )
+    try:
+        db_service.save_face_profile(
+            user_id=user_id, front_landmarks=body.front_landmarks,
+            profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
+            profile_photo=body.profile_photo,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {
         "success": True,
         "message": "Биометрический профиль сохранён.",
@@ -250,7 +253,7 @@ async def access_check(body: AccessCheckRequest):
         factor_used=body.factor,
         reason=f"{result.code}: {result.reason}",
         user_id=resolved_user_id,
-        direction=body.direction,
+        direction=direction.value,
         door_id=body.door_id,
     )
     return {
