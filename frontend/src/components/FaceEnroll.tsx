@@ -224,7 +224,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
         ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
         frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
-        await wait(220);
+        await wait(140);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
       setChallengeEvidence(nextEvidence);
