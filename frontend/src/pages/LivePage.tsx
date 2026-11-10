@@ -96,7 +96,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         try {
           const challenge = await createFaceAccessChallenge({ nfc_uid: uid, door_id: "main", direction: "in" });
           if (!active) return;
-          (challenge as any).nfc_uid = uid;
+          challenge.nfc_uid = uid;
           setFaceChallenge(challenge);
           setChallengeEvidence([]);
           setChallengeStep(0);
@@ -161,7 +161,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         setCapturePercent(0);
       } else {
         const result = await checkFaceAccess({
-          nfc_uid: (faceChallenge as any).nfc_uid,
+          nfc_uid: faceChallenge.nfc_uid || "",
           challenge_id: faceChallenge.challenge_id,
           door_id: faceChallenge.door_id,
           direction: faceChallenge.direction,
