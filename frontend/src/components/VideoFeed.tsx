@@ -41,25 +41,25 @@ export default function VideoFeed() {
   }, []);
 
   return (
-    <div className="relative aspect-video bg-slate-950 flex items-center justify-center">
+    <div className="absolute inset-0 flex items-center justify-center bg-black">
       <img
         ref={imgRef}
         alt="Camera feed"
-        className={`w-full h-full object-contain ${connected ? "block" : "hidden"}`}
+        className={`w-full h-full object-cover ${connected ? "block" : "hidden"}`}
       />
 
       {!connected && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-500">
-          <div className="text-4xl mb-2">📷</div>
-          <p className="text-sm">Ожидание видеопотока...</p>
-          <p className="text-xs mt-1 text-slate-600">
-            Backend → WebSocket → JPEG кадры
-          </p>
+        <div className="flex flex-col items-center justify-center text-slate-500">
+          <div className="w-16 h-16 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center text-3xl mb-4">
+            📷
+          </div>
+          <p className="text-sm text-slate-400">Ожидание видеопотока...</p>
+          <p className="text-xs mt-1 text-slate-600">Backend → WebSocket → JPEG</p>
         </div>
       )}
 
       {connected && (
-        <div className="absolute top-2 right-2 bg-black/60 text-xs px-2 py-1 rounded text-emerald-400">
+        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur px-2.5 py-1 rounded-lg text-xs text-emerald-400 font-medium">
           LIVE · {fps} fps
         </div>
       )}
