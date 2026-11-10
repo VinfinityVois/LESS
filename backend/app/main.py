@@ -22,6 +22,7 @@ from app.services.db_service import db_service
 from app.services.auth_service import auth_service
 from app.services.admin_auth_service import admin_auth_service
 from app.services.liveness_service import liveness_service
+from app.services.face_recognition_service import face_recognition_service
 from app.services.ai_analyzer import ai_analyzer
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
@@ -437,22 +438,53 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
         raise HTTPException(status_code=422, detail="Недостаточно контрольных точек лица.")
     if len(body.front_photo) > 8_000_000 or len(body.profile_photo) > 8_000_000:
         raise HTTPException(status_code=413, detail="Изображение превышает допустимый размер.")
-    candidates = db_service.find_similar_faces(user_id=user_id, landmarks=body.front_landmarks, limit=5)
     try:
+        front = face_recognition_service.embedding_from_image(body.front_photo)
+        profile = face_recognition_service.embedding_from_image(body.profile_photo)
+        candidates = db_service.find_similar_face_vectors(
+            user_id=user_id, front_vector=front["embedding"],
+            profile_vector=profile["embedding"], limit=5,
+        )
         db_service.save_face_profile(
             user_id=user_id, front_landmarks=body.front_landmarks,
             profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
             profile_photo=body.profile_photo,
         )
+        db_service.save_face_vectors(user_id, front["embedding"], profile["embedding"])
+    except RuntimeError as exc:
+        code = str(exc)
+        status = 503 if code == "face_models_missing" else 422
+        raise HTTPException(status_code=status, detail=(
+            "Не установлены модели YuNet/SFace. Выполните python scripts/download_face_models.py в папке backend."
+            if code == "face_models_missing" else "Не удалось создать биометрический вектор."
+        )) from exc
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=422, detail=(
+            "На каждом снимке должно быть ровно одно достаточно крупное лицо."
+            if str(exc) in {"face_count_invalid", "face_too_small"} else str(exc)
+        )) from exc
     return {
         "success": True,
-        "message": "Биометрический профиль сохранён.",
+        "message": "Биометрический профиль сохранён: два зашифрованных 128-мерных шаблона YuNet/SFace.",
         "duplicate_candidates": candidates,
-        "note": "Сходство рассчитывается по геометрии контрольных точек и требует проверки оператором.",
+        "embedding_dimensions": 128,
+        "note": "Процент сходства — cosine similarity модели, а не вероятность личности. Рабочий порог применяется отдельно при проходе.",
     }
 
+
+
+class FaceAccessChallengeRequest(BaseModel):
+    nfc_uid: str = Field(min_length=1, max_length=128)
+    door_id: str = Field(default="main", min_length=1, max_length=64, pattern="^[A-Za-z0-9_.-]+$")
+    direction: str = Field(default="in", pattern="^(in|out)$")
+
+
+class FaceAccessVerifyRequest(BaseModel):
+    nfc_uid: str = Field(min_length=1, max_length=128)
+    challenge_id: str = Field(min_length=20, max_length=128)
+    door_id: str = Field(default="main", min_length=1, max_length=64, pattern="^[A-Za-z0-9_.-]+$")
+    direction: str = Field(default="in", pattern="^(in|out)$")
+    evidence: list[LivenessActionEvidence] = Field(min_length=4, max_length=4)
 
 class AccessCheckRequest(BaseModel):
     nfc_uid: Optional[str] = Field(default=None, max_length=128)
@@ -563,6 +595,123 @@ async def access_check(body: AccessCheckRequest):
         "reason": result.reason,
         "code": result.code,
         "details": result.details,
+    }
+
+
+@app.post("/api/access/face-challenge")
+async def create_face_access_challenge(body: FaceAccessChallengeRequest, request: Request):
+    subject = db_service.get_user_by_nfc(body.nfc_uid)
+    if not subject:
+        db_service.log_access(body.nfc_uid, "denied", "nfc+face", "user_not_found: карта не зарегистрирована", direction=body.direction, door_id=body.door_id)
+        raise HTTPException(status_code=404, detail={"code": "user_not_found", "message": "Карта не зарегистрирована или сотрудник отключён. Проход запрещён."})
+    templates = {item["user_id"] for item in db_service.list_face_vectors()}
+    if subject["id"] not in templates:
+        db_service.log_access(body.nfc_uid, "denied", "nfc+face", "face_profile_missing: нет настоящего SFace-шаблона", user_id=subject["id"], direction=body.direction, door_id=body.door_id)
+        raise HTTPException(status_code=403, detail={"code": "face_profile_missing", "message": "Для сотрудника не зарегистрирован настоящий биометрический шаблон. Проход запрещён."})
+    if not db_service.has_biometric_consent(subject["id"]):
+        db_service.log_access(body.nfc_uid, "denied", "nfc+face", "biometric_consent_missing", user_id=subject["id"], direction=body.direction, door_id=body.door_id)
+        raise HTTPException(status_code=403, detail={"code": "biometric_consent_missing", "message": "Нет действующего согласия на обработку биометрии. Проход запрещён."})
+    challenge = liveness_service.create(request.state.admin["id"], subject["id"])
+    return {
+        **challenge,
+        "user": {"id": subject["id"], "name": subject.get("name") or "Без имени", "position": subject.get("position") or ""},
+        "door_id": body.door_id,
+        "direction": body.direction,
+    }
+
+
+@app.post("/api/access/check-face")
+async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
+    subject = db_service.get_user_by_nfc(body.nfc_uid)
+    direction = Direction.IN if body.direction == "in" else Direction.OUT
+    if not subject or not subject.get("is_active") or subject.get("deleted_at"):
+        raise HTTPException(status_code=403, detail={"code": "user_not_found", "message": "Карта неизвестна или отключена. Проход запрещён."})
+    admin_id = request.state.admin["id"]
+    verification = liveness_service.verify(
+        body.challenge_id, admin_id, subject["id"],
+        [item.model_dump() for item in body.evidence],
+    )
+    if not verification.get("verified"):
+        reason = verification.get("reason", "liveness_failed")
+        ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
+        access_policy.register_denied(ctx, reason)
+        event_id = db_service.log_access(
+            body.nfc_uid, "denied", "nfc+face",
+            f"liveness_failed:{reason}", user_id=subject["id"],
+            direction=direction.value, door_id=body.door_id,
+        )
+        admin_auth_service.audit(admin_id, "access.face_liveness_failed", str(event_id), reason)
+        raise HTTPException(status_code=422, detail={
+            "code": reason, "message": "Проверка живого присутствия не пройдена. Доступ запрещён.",
+            "failed_action": verification.get("failed_action"),
+            "diagnostics": verification.get("diagnostics"),
+        })
+    proof = verification.get("proof_token", "")
+    if not liveness_service.consume_proof(proof, admin_id, subject["id"]):
+        raise HTTPException(status_code=422, detail={"code": "liveness_proof_invalid", "message": "Подтверждение живого присутствия недействительно."})
+    try:
+        final_frame = body.evidence[-1].frames[-1]
+        observed = face_recognition_service.embedding_from_image(final_frame)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail={"code": "face_engine_unavailable", "message": "Модуль распознавания лица недоступен или модели не установлены."}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "face_not_detected", "message": "Не удалось выделить ровно одно лицо в кадре. Проход запрещён."}) from exc
+
+    from app.services.face_recognition_service import face_recognition_service as face_engine
+    ranked = []
+    for item in db_service.list_face_vectors():
+        scores = [face_engine.cosine_similarity(observed["embedding"], item["front_vector"])]
+        if item["profile_vector"]:
+            scores.append(face_engine.cosine_similarity(observed["embedding"], item["profile_vector"]))
+        ranked.append({**item, "score": max(scores)})
+    ranked.sort(key=lambda item: item["score"], reverse=True)
+    best = ranked[0] if ranked else None
+    second = ranked[1] if len(ranked) > 1 else None
+    threshold = face_engine.MATCH_THRESHOLD
+    margin = best["score"] - second["score"] if best and second else 1.0
+    if not best or best["score"] < threshold:
+        decision_code, decision_message = "face_unknown", "Лицо не найдено среди зарегистрированных сотрудников."
+        matched = None
+    elif margin < face_engine.AMBIGUITY_MARGIN:
+        decision_code, decision_message = "face_ambiguous", "Совпадение неоднозначно: несколько профилей имеют близкую оценку."
+        matched = None
+    elif best["user_id"] != subject["id"]:
+        decision_code, decision_message = "face_card_mismatch", "Лицо не соответствует сотруднику, которому принадлежит приложенная карта."
+        matched = best
+    else:
+        decision_code, decision_message, matched = "face_verified", "Личность подтверждена по карте и лицу.", best
+
+    if not matched or decision_code != "face_verified":
+        ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
+        access_policy.register_denied(ctx, decision_code)
+        event_id = db_service.log_access(body.nfc_uid, "denied", "nfc+face",
+            f"{decision_code}: {decision_message}; score={best['score'] if best else 'none'}",
+            user_id=subject["id"], direction=direction.value, door_id=body.door_id)
+        admin_auth_service.audit(admin_id, "access.face_denied", str(event_id), decision_code)
+        return {
+            "decision": "deny", "code": decision_code, "reason": decision_message,
+            "similarity": round(best["score"] * 100, 1) if best else None,
+            "subject": {"id": subject["id"], "name": subject.get("name") or "Без имени", "position": subject.get("position") or ""},
+        }
+
+    ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
+    policy_result = access_policy.evaluate(ctx)
+    event = "granted" if policy_result.decision == AccessDecision.ALLOW else "denied"
+    event_id = db_service.log_access(
+        body.nfc_uid, event, "nfc+face",
+        f"{policy_result.code}: {policy_result.reason}; face_cosine={best['score']:.4f}",
+        user_id=subject["id"], direction=direction.value, door_id=body.door_id,
+    )
+    admin_auth_service.audit(admin_id, "access.face_verified" if event == "granted" else "access.face_policy_denied", str(event_id), policy_result.code)
+    return {
+        "decision": policy_result.decision.value, "code": policy_result.code,
+        "reason": policy_result.reason, "similarity": round(best["score"] * 100, 1),
+        "liveness": "passed", "event_id": event_id,
+        "subject": {
+            "id": subject["id"], "name": subject.get("name") or "Без имени",
+            "position": subject.get("position") or "",
+            "photo_data_url": best.get("photo_data_url"),
+        },
     }
 
 
