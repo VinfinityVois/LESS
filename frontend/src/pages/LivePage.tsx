@@ -131,6 +131,70 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const closeExternal = async () => {
     try { await closeExternalDisplay(); } finally { localStorage.removeItem("less-external-display-active"); localStorage.removeItem("less-external-display-mode"); setExternalDisplayMode(null); }
   };
+  const captureFaceAction = async () => {
+    if (!faceChallenge || accessBusy) return;
+    const action = faceChallenge.actions[challengeStep];
+    setAccessBusy(true);
+    setCapturePercent(0);
+    try {
+      const frames: string[] = [];
+      const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+      for (let i = 0; i < 36; i++) {
+        const blob = latestFrameRef.current;
+        if (!blob) throw new Error("Нет видеокадра от камеры. Проверьте видеопоток.");
+        const bitmap = await createImageBitmap(blob);
+        const canvas = document.createElement("canvas");
+        canvas.width = bitmap.width;
+        canvas.height = bitmap.height;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Не удалось подготовить кадр камеры.");
+        context.drawImage(bitmap, 0, 0);
+        bitmap.close();
+        frames.push(canvas.toDataURL("image/jpeg", 0.72));
+        setCapturePercent(Math.round(((i + 1) / 36) * 100));
+        await wait(95);
+      }
+      const next = [...challengeEvidence, { action, frames }];
+      setChallengeEvidence(next);
+      if (challengeStep + 1 < faceChallenge.actions.length) {
+        setChallengeStep((value) => value + 1);
+        setCapturePercent(0);
+      } else {
+        const result = await checkFaceAccess({
+          nfc_uid: (faceChallenge as any).nfc_uid,
+          challenge_id: faceChallenge.challenge_id,
+          door_id: faceChallenge.door_id,
+          direction: faceChallenge.direction,
+          evidence: next,
+        });
+        setAccessResult(result);
+        setCurrentSubject(result.subject || faceChallenge.user);
+        setFaceChallenge(null);
+        setChallengeEvidence([]);
+        setChallengeStep(0);
+        setCapturePercent(0);
+        seenCardRef.current = "";
+        await load();
+      }
+    } catch (error: any) {
+      const detail = error?.response?.data?.detail;
+      setAccessResult({ decision: "deny", code: detail?.code || "face_check_failed", reason: detail?.message || detail || error?.message || "Проверка лица не пройдена." });
+      setFaceChallenge(null);
+      setChallengeEvidence([]);
+      setChallengeStep(0);
+      setCapturePercent(0);
+      seenCardRef.current = "";
+      await load();
+    } finally { setAccessBusy(false); }
+  };
+  const cancelFaceChallenge = () => {
+    setFaceChallenge(null);
+    setChallengeEvidence([]);
+    setChallengeStep(0);
+    setCapturePercent(0);
+    seenCardRef.current = "";
+  };
+
   const runTestCard = async () => {
     setTestCardBusy(true);
     try {
