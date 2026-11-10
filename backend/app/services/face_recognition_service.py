@@ -6,13 +6,12 @@ No image or embedding is sent to an external service.
 from __future__ import annotations
 
 import base64
-import hashlib
 from pathlib import Path
 from typing import Any
+from threading import RLock
 
 import cv2
 import numpy as np
-from loguru import logger
 
 
 class FaceRecognitionService:
@@ -25,6 +24,7 @@ class FaceRecognitionService:
     def __init__(self) -> None:
         self._detector = None
         self._recognizer = None
+        self._lock = RLock()
 
     @property
     def ready(self) -> bool:
@@ -56,52 +56,53 @@ class FaceRecognitionService:
         return image
 
     def detect_faces(self, image: np.ndarray) -> list[dict[str, float]]:
-        self._load()
-        height, width = image.shape[:2]
-        self._detector.setInputSize((width, height))
-        _, faces = self._detector.detect(image)
-        if faces is None:
-            return []
-        output = []
-        for face in faces:
-            x, y, w, h, score = [float(v) for v in face[:5]]
-            output.append({
-                "x": round(max(0.0, x / width), 5),
-                "y": round(max(0.0, y / height), 5),
-                "width": round(min(1.0, w / width), 5),
-                "height": round(min(1.0, h / height), 5),
-                "score": round(score, 4),
-            })
-        return output
+        with self._lock:
+            self._load()
+            height, width = image.shape[:2]
+            self._detector.setInputSize((width, height))
+            _, faces = self._detector.detect(image)
+            if faces is None:
+                return []
+            output = []
+            for face in faces:
+                x, y, w, h, score = [float(v) for v in face[:5]]
+                output.append({
+                    "x": round(max(0.0, x / width), 5),
+                    "y": round(max(0.0, y / height), 5),
+                    "width": round(min(1.0, w / width), 5),
+                    "height": round(min(1.0, h / height), 5),
+                    "score": round(score, 4),
+                })
+            return output
 
     def embedding_from_image(self, data_url: str) -> dict[str, Any]:
-        self._load()
-        image = self.decode_image(data_url)
-        height, width = image.shape[:2]
-        self._detector.setInputSize((width, height))
-        _, faces = self._detector.detect(image)
-        if faces is None or len(faces) != 1:
-            raise ValueError("face_count_invalid")
-        face = faces[0]
-        x, y, w, h = [float(v) for v in face[:4]]
-        if w < 90 or h < 90 or w * h / float(width * height) < 0.025:
-            raise ValueError("face_too_small")
-        aligned = self._recognizer.alignCrop(image, face)
-        vector = self._recognizer.feature(aligned).astype(np.float32).reshape(-1)
-        if vector.size != 128 or not np.all(np.isfinite(vector)):
-            raise RuntimeError("sface_embedding_invalid")
-        norm = float(np.linalg.norm(vector))
-        if norm < 1e-8:
-            raise RuntimeError("sface_embedding_invalid")
-        vector = vector / norm
-        return {
-            "embedding": vector.tolist(),
-            "face_box": [round(x / width, 5), round(y / height, 5), round(w / width, 5), round(h / height, 5)],
-            "face_area": round(w * h / float(width * height), 4),
-            "image_size": [width, height],
-        }
+        with self._lock:
+            self._load()
+            image = self.decode_image(data_url)
+            height, width = image.shape[:2]
+            self._detector.setInputSize((width, height))
+            _, faces = self._detector.detect(image)
+            if faces is None or len(faces) != 1:
+                raise ValueError("face_count_invalid")
+            face = faces[0]
+            x, y, w, h = [float(v) for v in face[:4]]
+            if w < 90 or h < 90 or w * h / float(width * height) < 0.025:
+                raise ValueError("face_too_small")
+            aligned = self._recognizer.alignCrop(image, face)
+            vector = self._recognizer.feature(aligned).astype(np.float32).reshape(-1)
+            if vector.size != 128 or not np.all(np.isfinite(vector)):
+                raise RuntimeError("sface_embedding_invalid")
+            norm = float(np.linalg.norm(vector))
+            if norm < 1e-8:
+                raise RuntimeError("sface_embedding_invalid")
+            vector = vector / norm
+            return {
+                "embedding": vector.tolist(),
+                "face_box": [round(x / width, 5), round(y / height, 5), round(w / width, 5), round(h / height, 5)],
+                "face_area": round(w * h / float(width * height), 4),
+                "image_size": [width, height],
+            }
 
-    @staticmethod
     def cosine_similarity(left: list[float], right: list[float]) -> float:
         a = np.asarray(left, dtype=np.float32).reshape(-1)
         b = np.asarray(right, dtype=np.float32).reshape(-1)
