@@ -161,7 +161,7 @@ class DBService:
 
     def get_user_by_nfc(self, nfc_uid: str) -> Optional[Dict[str, Any]]:
         with self._get_conn() as conn:
-            row = conn.execute("SELECT * FROM users WHERE nfc_uid=? AND is_active=1", (nfc_uid,)).fetchone()
+            row = conn.execute("SELECT * FROM users WHERE nfc_uid=? AND is_active=1 AND deleted_at IS NULL", (nfc_uid,)).fetchone()
             return dict(row) if row else None
 
     def list_users(self, include_inactive: bool = True, include_deleted: bool = False) -> List[Dict[str, Any]]:
