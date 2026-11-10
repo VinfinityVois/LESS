@@ -270,10 +270,10 @@ async def auth_audit(limit: int = Query(100, ge=1, le=500)):
 
 @app.post("/api/biometrics/liveness/challenge")
 async def create_liveness_challenge(body: LivenessChallengeRequest, request: Request):
-    require_biometric_encryption_key()
     subject = db_service.get_user(body.user_id, include_logs=False)
     if not subject or not subject.get("is_active") or subject.get("deleted_at"):
         raise HTTPException(status_code=404, detail="Сотрудник не найден, удалён или отключён. Сначала создайте активную карточку сотрудника.")
+    require_biometric_encryption_key()
     if not body.consent_confirmed:
         raise HTTPException(status_code=400, detail="Перед регистрацией необходимо подтвердить согласие субъекта на обработку биометрических данных.")
     db_service.record_biometric_consent(body.user_id, request.state.admin["id"])
@@ -587,6 +587,8 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.close(code=4401, reason="Authentication required")
             return
         token = handshake.get("token", "") if handshake.get("type") == "auth" else ""
+        if not isinstance(token, str) or len(token) > 512:
+            token = ""
         actor = admin_auth_service.authenticate(token)
         if not actor:
             await websocket.close(code=4401, reason="Unauthorized")
