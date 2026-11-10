@@ -154,25 +154,26 @@ class AccessPolicyService:
         return "unknown"
 
     def _check_lockout(self, subject: str, ctx: AccessContext) -> AccessResult:
-        until = self._locked_until.get(subject)
+        locked_until_value = db_service.get_access_lockout(subject)
+        until = datetime.fromisoformat(locked_until_value) if locked_until_value else None
         if until and ctx.now < until:
             left = int((until - ctx.now).total_seconds() // 60) + 1
             return AccessResult(AccessDecision.DENY, f"Заблокирован ещё ~{left} мин", "locked_out", details={"locked_until": until.isoformat()})
         if until and ctx.now >= until:
-            self._locked_until.pop(subject, None)
-            self._failed_attempts.pop(subject, None)
+            db_service.clear_access_failures(subject)
         return AccessResult(AccessDecision.ALLOW, "", "ok")
 
     def _register_failure(self, subject: str, ctx: AccessContext) -> None:
-        now = ctx.now
-        window_start = now - timedelta(minutes=self.failed_window_minutes)
-        attempts = [t for t in self._failed_attempts.get(subject, []) if t >= window_start]
-        attempts.append(now)
-        self._failed_attempts[subject] = attempts
-        if len(attempts) >= self.max_failed_attempts:
-            self._locked_until[subject] = now + timedelta(minutes=self.lockout_minutes)
-            logger.warning(f"LOCKOUT subject={subject} after {len(attempts)} failures")
-            self._notify_admin_lockout(subject, len(attempts))
+        failures, locked_until = db_service.record_access_failure(
+            subject_key=subject,
+            now=ctx.now,
+            window_seconds=self.failed_window_minutes * 60,
+            threshold=self.max_failed_attempts,
+            lock_seconds=self.lockout_minutes * 60,
+        )
+        if locked_until:
+            logger.warning(f"LOCKOUT subject={subject} after {failures} failures")
+            self._notify_admin_lockout(subject, failures)
 
     def _notify_admin_lockout(self, subject: str, count: int) -> None:
         logger.error(f"[ADMIN ALERT] Lockout: {subject}, failed={count}")
@@ -190,10 +191,10 @@ class AccessPolicyService:
     def _check_anti_passback(self, door: DoorPolicy, ctx: AccessContext) -> AccessResult:
         if ctx.user_id is None:
             return AccessResult(AccessDecision.ALLOW, "", "ok")
-        key = (ctx.user_id, door.door_id)
-        last = self._last_direction.get(key)
-        if last is None:
+        last_value = db_service.get_last_granted_direction(ctx.user_id, door.door_id)
+        if last_value not in {"in", "out"}:
             return AccessResult(AccessDecision.ALLOW, "", "ok")
+        last = Direction(last_value)
         if last == ctx.direction:
             needed = Direction.OUT if last == Direction.IN else Direction.IN
             return AccessResult(AccessDecision.DENY, f"Анти-пассбэк: ожидается «{needed.value}»", "anti_passback", details={"last": last.value, "requested": ctx.direction.value})
@@ -232,11 +233,8 @@ class AccessPolicyService:
         return AccessResult(AccessDecision.ALLOW, "Гостевой код принят", "ok", details={"label": meta["label"], "uses_left": meta["max_uses"] - meta["uses"]})
 
     def _on_success(self, ctx: AccessContext, door: DoorPolicy) -> None:
-        if ctx.user_id is not None and door.anti_passback:
-            self._last_direction[(ctx.user_id, door.door_id)] = ctx.direction
         subject = self._subject_key(ctx)
-        self._failed_attempts.pop(subject, None)
-        self._locked_until.pop(subject, None)
+        db_service.clear_access_failures(subject)
 
     @staticmethod
     def _hash_code(raw: str) -> str:
