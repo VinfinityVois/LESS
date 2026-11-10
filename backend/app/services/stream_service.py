@@ -79,6 +79,10 @@ class StreamService:
             logger.info("Видеострим остановлен")
             if self._streaming_task is asyncio.current_task():
                 self._streaming_task = None
+            # A display may reconnect while the previous task is releasing
+            # the device. Start a fresh capture only after that release finished.
+            if self.clients:
+                self.request_start()
 
     def stop_stream(self):
         self.is_streaming = False
