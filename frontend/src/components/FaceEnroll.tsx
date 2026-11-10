@@ -39,6 +39,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const start = async () => {
       try {
         const subject = await getUser(userId);
+        if (cancelled) return;
         if (!subject || !subject.is_active || subject.deleted_at) {
           setCameraError("Сотрудник не найден или отключён. Сначала создайте активную карточку сотрудника и повторите регистрацию биометрии.");
           setStage("error");
@@ -48,6 +49,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         cameraChannel.postMessage({ type: "pause-camera" });
         cameraPaused = true;
         await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        if (cancelled) return;
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
           navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
@@ -88,10 +90,11 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         };
         tick();
       } catch (e: any) {
-        if (cameraPaused) {
+        if (cameraPaused && !cancelled) {
           cameraChannel.postMessage({ type: "resume-camera" });
           cameraPaused = false;
         }
+        if (cancelled) return;
         setCameraError(e?.response?.data?.detail || (e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица."));
         setStage("error");
       }
