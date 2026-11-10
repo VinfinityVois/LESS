@@ -135,6 +135,9 @@ class AccessPolicyService:
             details={"door_id": ctx.door_id, "direction": ctx.direction.value, "user_id": ctx.user_id},
         )
 
+    def check_subject_lockout(self, ctx: AccessContext) -> AccessResult:
+        return self._check_lockout(self._subject_key(ctx), ctx)
+
     def register_denied(self, ctx: AccessContext, reason: str = "") -> None:
         self._register_failure(self._subject_key(ctx), ctx)
 
