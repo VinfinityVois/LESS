@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   History, ShieldCheck, LockKeyhole, UserRoundSearch, Fingerprint,
-  Nfc, Camera, ScanFace, CircleAlert, ArrowUpRight, Activity,
+  Nfc, Camera, ScanFace, CircleAlert, ArrowUpRight, Activity, MonitorUp,
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
+import { openCameraOnExternalDisplay } from "../services/desktopDisplay";
 import { getLogs, type AccessLog, type SystemStatus } from "../services/api";
 
 function fmt(iso?: string | null) {
@@ -20,6 +21,8 @@ function Factor({ icon: Icon, label, detail, state }: {
 
 export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [displayMessage, setDisplayMessage] = useState("");
+  const [displayBusy, setDisplayBusy] = useState(false);
   const load = useCallback(async () => {
     try { setLogs(await getLogs(40)); } catch { setLogs([]); }
   }, []);
@@ -32,6 +35,18 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   // Use the backend's actual status values; "running" and "connected" are not "ok".
   const cameraOk = status?.camera === "running";
   const serialOk = status?.serial === "connected";
+  const openExternalDisplay = async () => {
+    setDisplayBusy(true);
+    setDisplayMessage("");
+    try {
+      await openCameraOnExternalDisplay();
+      setDisplayMessage("Видеопоток открыт на дополнительном мониторе.");
+    } catch (error) {
+      setDisplayMessage(error instanceof Error ? error.message : "Не удалось открыть дополнительный экран.");
+    } finally {
+      setDisplayBusy(false);
+    }
+  };
   const granted = logs.filter((log) => log.event_type === "granted").length;
   const denied = logs.filter((log) => log.event_type !== "granted").length;
 
@@ -50,14 +65,14 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
     <div className="live-grid">
       <section className="camera-column">
-        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span></div>
+        <div className="panel-heading"><div><span className="eyebrow">ВИЗУАЛЬНЫЙ КОНТРОЛЬ</span><h2>Камера проходной</h2></div><div className="camera-actions"><span className={`camera-indicator ${cameraOk ? "is-live" : ""}`}><i />{cameraOk ? "СИГНАЛ КАМЕРЫ" : "НЕТ ПОДТВЕРЖДЁННОГО СИГНАЛА"}</span><button className="users-button camera-display-button" onClick={() => void openExternalDisplay()} disabled={displayBusy}><MonitorUp size={14}/>{displayBusy ? "Открытие…" : "Доп. монитор"}</button></div></div>
         <div className="camera-frame">
           <VideoFeed />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
           <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
-        <div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>
+        <div className="camera-caption"><span>Видеопоток передаётся локально через WebSocket</span><span>Запись кадров не подтверждена интерфейсом</span></div>{displayMessage && <p className="camera-display-message" role="status">{displayMessage}</p>}
 
         <section className="events-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ПОСЛЕДНЯЯ АКТИВНОСТЬ</span><h2>События доступа</h2></div><span className="event-count">{logs.length} ЗАПИСЕЙ</span></div>
