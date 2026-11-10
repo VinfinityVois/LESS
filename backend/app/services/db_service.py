@@ -433,8 +433,12 @@ class DBService:
             if item["user_id"] == user_id:
                 continue
             scores = [face_recognition_service.cosine_similarity(front_vector, item["front_vector"])]
+            if profile_vector:
+                scores.append(face_recognition_service.cosine_similarity(profile_vector, item["front_vector"]))
             if item["profile_vector"]:
                 scores.append(face_recognition_service.cosine_similarity(front_vector, item["profile_vector"]))
+                if profile_vector:
+                    scores.append(face_recognition_service.cosine_similarity(profile_vector, item["profile_vector"]))
             score = max(scores)
             candidates.append({"user_id": item["user_id"], "name": item["name"], "similarity": round(max(0.0, score) * 100, 1)})
         candidates.sort(key=lambda item: item["similarity"], reverse=True)
