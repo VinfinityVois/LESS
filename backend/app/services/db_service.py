@@ -288,6 +288,12 @@ class DBService:
         item["door_ids"] = json.loads(item["door_ids"] or '["main"]')
         return item
 
+    def consume_guest_pass(self, pass_id: int) -> bool:
+        with self._get_conn() as conn:
+            cur = conn.execute("UPDATE guest_passes SET uses=uses+1,updated_at=? WHERE id=? AND status='active' AND expires_at>? AND uses<max_uses",
+                               (datetime.now(timezone.utc).isoformat(), pass_id, datetime.now(timezone.utc).isoformat()))
+            return cur.rowcount > 0
+
     def update_guest_pass(self, pass_id: int, action: str, hours: float = 0) -> bool:
         now = datetime.now(timezone.utc)
         with self._get_conn() as conn:
