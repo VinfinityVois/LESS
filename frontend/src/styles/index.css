@@ -543,3 +543,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .subject-identified.is-verifying{border-bottom:1px solid rgba(97,216,208,.22);background:linear-gradient(90deg,rgba(97,216,208,.07),transparent);padding-left:8px}
 .subject-identified.is-verifying img{border-color:rgba(97,216,208,.55);box-shadow:0 0 16px rgba(97,216,208,.12)}
 .subject-meta b{max-width:60%;text-align:right}
+
+.hardware-security-panel{margin-top:13px;padding:0 14px 12px;border:1px solid var(--line);border-radius:11px;background:var(--panel);overflow:hidden}
+.hardware-state-row{display:flex;justify-content:space-between;gap:12px;padding:8px 1px;border-bottom:1px solid rgba(130,160,164,.09);font:9px var(--mono);color:#82979b}
+.hardware-state-row b{color:#b9cece;font-weight:500;text-align:right}
+.hardware-security-panel .standby-pill.is-connected{color:#75d9b6;border-color:rgba(117,217,182,.3);background:rgba(45,135,101,.12)}
+.hardware-security-note{margin:10px 0 0;color:#82979b;font-size:9px;line-height:1.55}
+.hardware-alarm{padding:8px 9px;border:1px solid rgba(225,83,83,.45);border-radius:6px;background:rgba(140,31,31,.18);color:#ff9999;font:9px var(--mono)}
