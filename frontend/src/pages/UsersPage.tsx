@@ -14,6 +14,7 @@ function statusLabel(active: number) { return active ? "АКТИВЕН" : "ЗА�
 export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (user: UserType) => void; readOnly?: boolean }) {
   const [users, setUsers] = useState<UserType[]>([]);
   const [selected, setSelected] = useState<UserType | null>(null);
+  const [pendingRemoval, setPendingRemoval] = useState<UserType | null>(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [editId, setEditId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -83,8 +84,11 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     catch (e: any) { setError(e?.response?.data?.detail || "Не удалось изменить статус."); }
     finally { setBusy(false); }
   };
-  const remove = async (user: UserType) => {
-    if (!window.confirm(`Убрать «${user.name || user.nfc_uid}» из действующего списка? Доступ будет отозван, а история проходов сохранится в отчётах.`)) return;
+  const remove = (user: UserType) => setPendingRemoval(user);
+  const confirmRemoval = async () => {
+    if (!pendingRemoval) return;
+    const user = pendingRemoval;
+    setPendingRemoval(null);
     setBusy(true);
     try { await deleteUser(user.id); setSelected(null); await load(); setMessage("Сотрудник убран из действующего списка. История проходов сохранена в отчётах."); }
     catch (e: any) { setError(e?.response?.data?.detail || "Не удалось удалить пользователя."); }
@@ -139,6 +143,7 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     <div className="users-history-card"><div className="users-section-title"><div><span className="eyebrow">ИСТОРИЯ</span><h2>Последние события прохода</h2></div></div>
       {selected.logs?.length ? <div className="users-history-list">{selected.logs.map((log) => <div key={log.id}><span>{fmt(log.created_at)}</span><b>{log.direction || log.event_type}</b><small>{log.door_id || log.reason || "Точка прохода не указана"}</small></div>)}</div> : <p className="users-muted">История проходов пока не возвращается API карточки пользователя.</p>}
     </div>
+    {pendingRemoval && <div className="operator-dialog-backdrop"><section className="operator-dialog" role="dialog" aria-modal="true" aria-labelledby="remove-user-title"><span className="eyebrow">ПОДТВЕРЖДЕНИЕ ДЕЙСТВИЯ</span><h2 id="remove-user-title">Отозвать доступ сотрудника?</h2><p>«{pendingRemoval.name || pendingRemoval.nfc_uid}» будет убран из действующего списка. История проходов останется в журнале.</p><div className="operator-dialog-actions"><button className="users-button" onClick={() => setPendingRemoval(null)}>Отмена</button><button className="users-button users-button--danger" disabled={busy} onClick={() => void confirmRemoval()}>Отозвать доступ</button></div></section></div>}
   </section>;
 
   return <section className="content-section users-page">
