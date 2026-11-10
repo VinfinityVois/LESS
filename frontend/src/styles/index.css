@@ -206,3 +206,6 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 .camera-display__viewport.is-video{overflow:hidden}
 .camera-display__viewport.is-video>div{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
 .camera-display__viewport.is-video img{width:auto!important;height:100%!important;max-width:100%;aspect-ratio:9/16;object-fit:cover!important}
+
+
+.liveness-permission-note{display:block;margin-top:9px;color:#71878d;font-size:9px;line-height:1.45}
