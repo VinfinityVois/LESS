@@ -47,7 +47,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     if (!raw) return null;
     let value = raw.trim();
     try { const parsed = JSON.parse(value); if (parsed && typeof parsed.uid === "string") value = parsed.uid; } catch { /* plain UID line */ }
-    value = value.replace(/^(?:UID|CARD|NFC|CARD_UID)\s*[:=]\s*/i, "").trim();
+    value = value.replace(/^(?:CARD\s+UID|UID|CARD|NFC|CARD_UID)\s*[:=]\s*/i, "").trim();
     if (!/^[A-Za-z0-9:_ -]{4,80}$/.test(value)) return null;
     return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase() || null;
   };
