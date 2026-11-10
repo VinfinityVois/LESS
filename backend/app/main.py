@@ -447,8 +447,16 @@ async def access_check(body: AccessCheckRequest):
     resolved_user = None
     identity_error = None
     if body.user_id is not None:
+        if not body.nfc_uid and not body.guest_code:
+            identity_error = AccessResult(
+                AccessDecision.DENY,
+                "Одного внутреннего ID недостаточно для подтверждения личности. Приложите NFC-карту или используйте действующий гостевой код.",
+                "identity_not_proven",
+            )
         supplied_user = db_service.get_user(body.user_id, include_logs=False)
-        if not supplied_user or not supplied_user.get("is_active") or supplied_user.get("deleted_at"):
+        if identity_error:
+            pass
+        elif not supplied_user or not supplied_user.get("is_active") or supplied_user.get("deleted_at"):
             identity_error = AccessResult(
                 AccessDecision.DENY,
                 "Сотрудник не найден, удалён или отключён. Доступ запрещён.",
@@ -485,7 +493,12 @@ async def access_check(body: AccessCheckRequest):
         factor=body.factor,
     )
     if identity_error:
-        result = identity_error
+        lockout = access_policy.check_subject_lockout(ctx)
+        if lockout.decision == AccessDecision.DENY:
+            result = lockout
+        else:
+            access_policy.register_denied(ctx, identity_error.reason)
+            result = identity_error
     elif body.factor.lower() in {"face", "biometric", "face_biometric"}:
         result = AccessResult(
             AccessDecision.DENY,
