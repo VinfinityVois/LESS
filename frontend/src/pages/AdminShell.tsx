@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import { useSystemStore } from "../stores/systemStore";
 import type { AdminAccount, User as UserType } from "../services/api";
-import { createGuestCode } from "../services/api";
+import { createGuestCode, listGuestPasses, updateGuestPass, deleteGuestPass, type GuestPass } from "../services/api";
 import LivePage from "./LivePage";
 import UsersPage from "./UsersPage";
 import LogsPage from "./LogsPage";
@@ -42,7 +42,8 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const [guestName, setGuestName] = useState("Гость");
   const [guestHours, setGuestHours] = useState(2);
   const [guestDoor, setGuestDoor] = useState("main");
-  const [guestPasses, setGuestPasses] = useState<Array<{code:string;label:string;expires_at:string;created_at:string;door_ids:string[]}>>([]);
+  const [guestPasses, setGuestPasses] = useState<GuestPass[]>([]);
+  const [guestActionBusy, setGuestActionBusy] = useState<number | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
 
   useEffect(() => {
@@ -50,6 +51,9 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
   }, [refresh]);
+  useEffect(() => {
+    if (nav === "guests") void listGuestPasses().then(setGuestPasses).catch(() => setGuestMsg("Не удалось загрузить гостевые пропуска."));
+  }, [nav]);
   useEffect(() => {
     const tick = () => {
       const now = new Date();
@@ -77,8 +81,8 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     setGuestMsg("");
     try {
       const result = await createGuestCode({ label: guestName.trim() || "Гость", valid_hours: guestHours, max_uses: 1, door_ids: [guestDoor] });
-      setGuestPasses((items) => [{ code: result.code, label: result.label || guestName.trim() || "Гость", expires_at: result.expires_at, created_at: new Date().toISOString(), door_ids: result.door_ids || [guestDoor] }, ...items]);
-      setGuestMsg("Гостевой пропуск создан.");
+      setGuestMsg("Пропуск создан. Код: " + result.code);
+      setGuestPasses(await listGuestPasses());
     } catch {
       setGuestMsg("Не удалось создать пропуск. Проверьте соединение с backend.");
     } finally {
