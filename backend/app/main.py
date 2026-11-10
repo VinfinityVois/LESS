@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.config import settings
 from app.services.camera_service import camera_service
 from app.services.serial_service import serial_service
+from app.services.tamper_evident_audit import audit_journal
 from app.services.db_service import db_service
 from app.services.auth_service import auth_service
 from app.services.admin_auth_service import admin_auth_service
@@ -128,6 +129,15 @@ async def get_logs(limit: int = Query(50, ge=1, le=500)):
 @app.get("/api/alerts")
 async def get_alerts(limit: int = Query(20, ge=1, le=100)):
     return db_service.get_recent_alerts(limit=limit)
+
+@app.get("/api/security/audit/verify")
+async def verify_security_audit():
+    return audit_journal.verify()
+
+
+@app.get("/api/hardware/status")
+async def hardware_status():
+    return serial_service.hardware_status()
 
 
 @app.post("/api/ai/analyze")
@@ -730,17 +740,54 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
 
     ctx = AccessContext(nfc_uid=body.nfc_uid, user_id=subject["id"], door_id=body.door_id, direction=direction, factor="nfc+face")
     policy_result = access_policy.evaluate(ctx)
-    event = "granted" if policy_result.decision == AccessDecision.ALLOW else "denied"
+    final_decision = policy_result.decision
+    final_code = policy_result.code
+    final_reason = policy_result.reason
+    hardware_ack = None
+
+    # A policy decision is not a physical access grant. Require a signed,
+    # fresh controller ACK and a sane door-sensor state before recording grant.
+    if final_decision == AccessDecision.ALLOW:
+        try:
+            command = serial_service.send_secure_command("unlock", body.door_id, duration_ms=3000)
+            hardware_ack = await asyncio.to_thread(
+                serial_service.wait_for_ack,
+                command["command_id"],
+                float(getattr(settings, "CONTROLLER_ACK_TIMEOUT", 4.0)),
+            )
+            if not hardware_ack or not hardware_ack.get("accepted") or hardware_ack.get("lock_state") != "unlocked" or hardware_ack.get("door_state") not in {"closed", "open"}:
+                final_decision = AccessDecision.DENY
+                final_code = "hardware_ack_invalid"
+                final_reason = "Контроллер не подтвердил снятие блокировки и исправное состояние датчика двери. Проход запрещён."
+                access_policy.register_denied(ctx, final_code)
+        except Exception as exc:
+            final_decision = AccessDecision.DENY
+            final_code = "hardware_controller_unavailable"
+            final_reason = "Защищённый контроллер недоступен или не настроен. Физический проход запрещён."
+            access_policy.register_denied(ctx, final_code)
+            logger.warning(f"Hardware unlock fail-closed: {exc}")
+
+    event = "granted" if final_decision == AccessDecision.ALLOW else "denied"
     event_id = db_service.log_access(
         body.nfc_uid, event, "nfc+face",
-        f"{policy_result.code}: {policy_result.reason}; face_cosine={best['score']:.4f}",
+        f"{final_code}: {final_reason}; face_cosine={best['score']:.4f}; controller={hardware_ack or 'not_confirmed'}",
         user_id=subject["id"], direction=direction.value, door_id=body.door_id,
     )
-    admin_auth_service.audit(admin_id, "access.face_verified" if event == "granted" else "access.face_policy_denied", str(event_id), policy_result.code)
+    admin_auth_service.audit(
+        admin_id,
+        "access.hardware_confirmed" if event == "granted" else "access.hardware_denied",
+        str(event_id),
+        f"code={final_code}; controller_ack={bool(hardware_ack)}",
+    )
     return {
-        "decision": policy_result.decision.value, "code": policy_result.code,
-        "reason": policy_result.reason, "similarity": round(best["score"] * 100, 1),
+        "decision": final_decision.value, "code": final_code,
+        "reason": final_reason, "similarity": round(best["score"] * 100, 1),
         "liveness": "passed", "event_id": event_id,
+        "hardware": {
+            "confirmed": bool(hardware_ack and hardware_ack.get("accepted") and hardware_ack.get("lock_state") == "unlocked"),
+            "lock_state": (hardware_ack or {}).get("lock_state", "unknown"),
+            "door_state": (hardware_ack or {}).get("door_state", "unknown"),
+        },
         "subject": {
             "id": subject["id"], "name": subject.get("name") or "Без имени",
             "position": subject.get("position") or "",
