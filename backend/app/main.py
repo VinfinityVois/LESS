@@ -82,7 +82,7 @@ async def protect_control_plane(request: Request, call_next):
             (path.startswith("/api/users") and request.method in {"POST", "PATCH", "DELETE"})
             or path.startswith("/api/biometrics")
             or path.startswith("/api/camera")
-            or path.startswith("/api/serial")
+            or (path.startswith("/api/serial") and request.method != "GET")
             or path.startswith("/api/ai")
             or path == "/api/access/check"
         ):
@@ -156,6 +156,12 @@ async def list_serial_ports():
 async def serial_connect(port: Optional[str] = None):
     ok = serial_service.connect(port=port)
     return {"success": ok, "port": port or settings.SERIAL_PORT}
+
+@app.get("/api/serial/read")
+async def serial_read():
+    line = serial_service.read_line()
+    return {"line": line}
+
 
 
 
