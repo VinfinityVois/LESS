@@ -158,7 +158,7 @@ async def serial_connect(port: Optional[str] = None):
     return {"success": ok, "port": port or settings.SERIAL_PORT}
 
 @app.get("/api/serial/read")
-async def serial_read():
+def serial_read():
     line = serial_service.read_line()
     return {"line": line}
 
