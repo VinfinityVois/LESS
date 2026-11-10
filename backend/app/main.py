@@ -202,7 +202,7 @@ class LivenessActionEvidence(BaseModel):
 class LivenessVerifyRequest(BaseModel):
     user_id: int = Field(gt=0)
     challenge_id: str = Field(min_length=20, max_length=128)
-    evidence: list[LivenessActionEvidence] = Field(min_length=2, max_length=2)
+    evidence: list[LivenessActionEvidence] = Field(min_length=3, max_length=3)
 
 
 @app.get("/api/auth/bootstrap-status")
@@ -454,6 +454,12 @@ class AccessCheckRequest(BaseModel):
     factor: str = Field(default="nfc", min_length=1, max_length=32)
 
 
+class TestCardRequest(BaseModel):
+    label: str = Field(default="Тестовая карта", min_length=1, max_length=80)
+    door_id: str = Field(default="main", min_length=1, max_length=64, pattern="^[A-Za-z0-9_.-]+$")
+    direction: str = Field(default="in", pattern="^(in|out)$")
+
+
 class GuestCodeCreate(BaseModel):
     label: str = "Гость"
     valid_hours: float = Field(default=2.0, ge=0.1, le=72)
@@ -549,6 +555,20 @@ async def access_check(body: AccessCheckRequest):
         "code": result.code,
         "details": result.details,
     }
+
+
+@app.post("/api/access/test-card")
+async def simulate_test_card(body: TestCardRequest, request: Request):
+    """Record a test-card event without access-policy evaluation or hardware actuation."""
+    actor = request.state.admin
+    event_id = db_service.log_access(
+        nfc_uid="TEST-CARD", event_type="simulated", factor_used="test-card",
+        reason=f"SIMULATION_ONLY · {body.label} · оператор ID {actor['id']} · физический замок не задействован",
+        direction=body.direction, door_id=body.door_id,
+    )
+    admin_auth_service.audit(actor["id"], "access.test_card_simulated", str(event_id), "No access policy or relay action executed")
+    return {"success": True, "simulation": True, "event_id": event_id,
+            "message": "Тестовое событие записано. Реальный доступ и замок не затрагивались."}
 
 
 @app.get("/api/access/doors")
