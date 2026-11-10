@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
-import { getLogs, simulateTestCard, type AccessLog, type SystemStatus } from "../services/api";
+import { getLogs, listUsers, simulateTestCard, type AccessLog, type SystemStatus, type User } from "../services/api";
 
 function fmt(iso?: string | null) {
   if (!iso) return "—";
@@ -21,6 +21,7 @@ function Factor({ icon: Icon, label, detail, state }: {
 
 export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [registeredFaces, setRegisteredFaces] = useState(0);
   const [displayMessage, setDisplayMessage] = useState("");
   const [displayBusy, setDisplayBusy] = useState(false);
   const [testCardBusy, setTestCardBusy] = useState(false);
@@ -46,6 +47,10 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   }, []);
   const load = useCallback(async () => {
     try { setLogs(await getLogs(40)); } catch { setLogs([]); }
+    try {
+      const users: User[] = await listUsers(true);
+      setRegisteredFaces(users.filter((user) => !!user.face_enrolled && !!user.is_active && !user.deleted_at).length);
+    } catch { setRegisteredFaces(0); }
   }, []);
   useEffect(() => {
     void load();
@@ -134,7 +139,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ИДЕНТИФИКАЦИЯ</span><h2>Факторы проверки</h2></div><span className="standby-pill">STANDBY</span></div>
           <div className="factor-list">
             <Factor icon={Nfc} label="NFC-карта / браслет" detail="Ожидание UID от считывателя" state={serialOk ? "ready" : "waiting"} />
-            <Factor icon={ScanFace} label="Распознавание лица" detail="Шаблоны регистрируются; runtime-match пока отключён" state="stub" />
+            <Factor icon={ScanFace} label="Распознавание лица" detail={`Зарегистрированных профилей: ${registeredFaces}. Сравнение личности при проходе ещё не подключено.`} state="stub" />
             <Factor icon={LockKeyhole} label="PIN-код" detail="Второй фактор подтверждения" state="waiting" />
             <Factor icon={Fingerprint} label="Отпечаток пальца" detail="Временная программная заглушка" state="stub" />
           </div>
