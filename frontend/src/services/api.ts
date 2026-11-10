@@ -260,7 +260,7 @@ export interface FaceAccessChallenge {
   challenge_id: string;
   actions: string[];
   instructions: Record<string, string>;
-  user: { id: number; name: string; position: string };
+  user: { id: number; name: string; position: string; photo_data_url?: string | null };
   door_id: string;
   direction: string;
 }
