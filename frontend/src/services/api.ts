@@ -174,6 +174,20 @@ export async function getAlerts(limit = 20) {
   return data;
 }
 
+export async function getHardwareStatus() {
+  const { data } = await api.get("/api/hardware/status");
+  return data as {
+    configured: boolean; authenticated: boolean; serial_connected: boolean;
+    controller_id?: string | null; lock_state: string; door_state: string;
+    last_seen?: string | null; alarm?: string | null;
+  };
+}
+
+export async function verifySecurityAudit() {
+  const { data } = await api.get("/api/security/audit/verify");
+  return data as { valid: boolean; records: number; head?: string; error?: string };
+}
+
 export async function startCamera() {
   const { data } = await api.post("/api/camera/start");
   return data;
