@@ -35,6 +35,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [accessBusy, setAccessBusy] = useState(false);
   const [accessResult, setAccessResult] = useState<any>(null);
   const [currentSubject, setCurrentSubject] = useState<any>(null);
+  const [subjectStage, setSubjectStage] = useState<"idle" | "card" | "challenge" | "recognizing" | "granted" | "denied">("idle");
   const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
     const saved = localStorage.getItem("less-external-display-mode");
     return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
@@ -42,6 +43,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const externalDisplayActive = externalDisplayMode !== null;
   const cameraOk = status?.camera === "running";
   const serialOk = status?.serial === "connected";
+  const activeSubject = faceChallenge?.user || currentSubject;
+  const subjectStageLabel = ({ idle: "НЕ НАЧАТА", card: "КАРТА СЧИТАНА", challenge: "ПРОВЕРКА ПРИСУТСТВИЯ", recognizing: "РАСПОЗНАВАНИЕ ЛИЦА", granted: "ДОСТУП ПОДТВЕРЖДЁН", denied: "ДОСТУП ОТКЛОНЁН" } as const)[subjectStage];
   const onCameraFrame = useCallback((blob: Blob) => { latestFrameRef.current = blob; }, []);
   const parseCardUid = (raw: string | null) => {
     if (!raw) return null;
@@ -92,7 +95,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         challengeBusyRef.current = true;
         setAccessResult(null);
         setCurrentSubject(null);
-        setDisplayMessage("Карта считана. Запускается проверка лица и живого присутствия…");
+        setSubjectStage("card");
+        setDisplayMessage("Карта считана. Поиск карточки субъекта…");
         try {
           const challenge = await createFaceAccessChallenge({ nfc_uid: uid, door_id: "main", direction: "in" });
           if (!active) return;
@@ -101,10 +105,12 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           setChallengeEvidence([]);
           setChallengeStep(0);
           setCurrentSubject(challenge.user);
+          setSubjectStage("challenge");
           setDisplayMessage("");
         } catch (error: any) {
           const detail = error?.response?.data?.detail;
           setAccessResult({ decision: "deny", code: detail?.code || "card_rejected", reason: detail?.message || detail || "Не удалось начать проверку лица." });
+          setSubjectStage("denied");
           setDisplayMessage(detail?.message || detail || "Карта отклонена. Проход запрещён.");
           seenCardRef.current = "";
         } finally { challengeBusyRef.current = false; }
@@ -160,6 +166,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         setChallengeStep((value) => value + 1);
         setCapturePercent(0);
       } else {
+        setSubjectStage("recognizing");
         const result = await checkFaceAccess({
           nfc_uid: faceChallenge.nfc_uid || "",
           challenge_id: faceChallenge.challenge_id,
@@ -169,6 +176,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         });
         setAccessResult(result);
         setCurrentSubject(result.subject || faceChallenge.user);
+        setSubjectStage(result.decision === "allow" ? "granted" : "denied");
         setFaceChallenge(null);
         setChallengeEvidence([]);
         setChallengeStep(0);
@@ -179,6 +187,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
     } catch (error: any) {
       const detail = error?.response?.data?.detail;
       setAccessResult({ decision: "deny", code: detail?.code || "face_check_failed", reason: detail?.message || detail || error?.message || "Проверка лица не пройдена." });
+      setSubjectStage("denied");
       setFaceChallenge(null);
       setChallengeEvidence([]);
       setChallengeStep(0);
@@ -233,7 +242,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <VideoFeed onFrame={onCameraFrame} hidden={externalDisplayMode === "video"} />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
-          <div className="camera-frame__bottom"><div className="subject-placeholder"><div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div><div><strong>Ожидание субъекта</strong><span>Поднесите NFC-карту к считывателю</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
+          <div className="camera-frame__bottom"><div className="subject-placeholder">{activeSubject?.photo_data_url ? <img className="subject-placeholder__photo" src={activeSubject.photo_data_url} alt="" /> : <div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div>}<div><strong>{activeSubject?.name || (subjectStage === "card" ? "Карта считана" : "Ожидание субъекта")}</strong><span>{activeSubject ? (activeSubject.position || "Сотрудник · карточка активна") : "Поднесите NFC-карту к считывателю"}</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
         {faceChallenge && <section className="face-access-challenge">
           <span className="eyebrow">ДВУХФАКТОРНАЯ ПРОВЕРКА · {challengeStep + 1}/{faceChallenge.actions.length}</span>
@@ -272,8 +281,8 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
         <section className="surface-panel subject-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ТЕКУЩАЯ СЕССИЯ</span><h2>Карточка субъекта</h2></div><UserRoundSearch size={18} className="muted-icon" /></div>
-          {currentSubject ? <div className="subject-identified">{currentSubject.photo_data_url && <img src={currentSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{currentSubject.name}</strong><span>{currentSubject.position || "Должность не указана"}</span><small>ID · {currentSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>Субъект не определён</strong><span>Поднесите карту к считывателю для запуска проверки.</span></div>}
-          <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{faceChallenge ? "ПРОВЕРКА ЛИЦА" : accessResult ? (accessResult.decision === "allow" ? "ПОДТВЕРЖДЁН" : "ОТКАЗ") : "НЕ НАЧАТА"}</b></div>
+          {activeSubject ? <div className={"subject-identified " + (faceChallenge || accessBusy ? "is-verifying" : "")}>{activeSubject.photo_data_url && <img src={activeSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{activeSubject.name}</strong><span>{activeSubject.position || "Должность не указана"}</span><small>ID · {activeSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>{subjectStage === "card" ? "Поиск карточки…" : "Субъект не определён"}</strong><span>Карточка активируется сразу после чтения NFC UID.</span></div>}
+          <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{subjectStageLabel}</b></div>
         </section>
 
         <section className="operator-warning">
