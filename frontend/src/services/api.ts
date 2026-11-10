@@ -251,6 +251,37 @@ export async function accessCheck(body: {
   return data;
 }
 
+export async function readSerialCardLine() {
+  const { data } = await api.get<{ line: string | null }>("/api/serial/read");
+  return data.line;
+}
+
+export interface FaceAccessChallenge {
+  challenge_id: string;
+  actions: string[];
+  instructions: Record<string, string>;
+  user: { id: number; name: string; position: string };
+  door_id: string;
+  direction: string;
+}
+
+export async function createFaceAccessChallenge(body: { nfc_uid: string; door_id?: string; direction?: string }) {
+  const { data } = await api.post<FaceAccessChallenge>("/api/access/face-challenge", body);
+  return data;
+}
+
+export async function checkFaceAccess(body: {
+  nfc_uid: string; challenge_id: string; door_id?: string; direction?: string;
+  evidence: { action: string; frames: string[] }[];
+}) {
+  const { data } = await api.post("/api/access/check-face", body);
+  return data as {
+    decision: "allow" | "deny"; code: string; reason: string; similarity?: number;
+    liveness?: string; event_id?: number;
+    subject?: { id: number; name: string; position: string; photo_data_url?: string | null };
+  };
+}
+
 export async function createGuestCode(body: {
   label?: string;
   valid_hours?: number;
