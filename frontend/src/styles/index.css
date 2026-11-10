@@ -209,3 +209,48 @@ html,body,#root{height:100%;min-height:0;overflow:hidden}
 
 
 .liveness-permission-note{display:block;margin-top:9px;color:#71878d;font-size:9px;line-height:1.45}
+
+
+/* Monitoring layout: compact counters share the title row; content remains scrollable. */
+.workspace-content:has(.live-dashboard){overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain}
+.live-heading{align-items:center;flex-wrap:wrap;gap:14px;margin-bottom:15px}
+.live-heading__copy{min-width:240px;flex:1 1 300px}
+.live-heading__metrics{display:flex;align-items:stretch;gap:7px;flex:0 1 auto}
+.live-mini-metric{min-width:112px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:rgba(255,255,255,.018)}
+.live-mini-metric span{max-width:112px;color:#819399;font:8px/1.35 var(--mono);letter-spacing:.055em}
+.live-mini-metric b{color:#e5eeee;font:700 17px var(--display)}
+.live-mini-metric.is-success b{color:var(--green)}
+.live-mini-metric.is-warning b{color:var(--amber)}
+.live-heading .post-status{flex:0 0 auto}
+.live-grid{align-items:stretch}
+.camera-column,.verification-column{min-width:0}
+.camera-frame{min-height:clamp(250px,31vw,440px)}
+.camera-frame--relayed{opacity:.36;filter:saturate(.65)}
+.external-display-notice{margin-top:9px;min-height:54px;padding:9px 12px}
+.events-panel{min-width:0}
+.events-table{max-height:250px;overflow-y:auto;overscroll-behavior:contain}
+.events-table__head,.event-row{grid-template-columns:92px minmax(0,1fr) 94px;padding-top:7px;padding-bottom:7px}
+.subject-panel,.verification-panel,.operator-warning{min-width:0;overflow:visible}
+.subject-empty{padding:15px 16px 12px}
+.subject-empty span{max-width:100%;overflow-wrap:anywhere}
+.operator-warning p{overflow-wrap:anywhere}
+.live-grid--external .camera-frame{min-height:clamp(220px,25vw,340px)}
+.live-grid--external .events-table{max-height:220px}
+@media(max-width:1050px){
+  .live-heading__metrics{order:3;flex:1 1 100%}
+  .live-mini-metric{flex:1}
+  .live-heading .post-status{margin-left:auto}
+}
+@media(max-width:600px){
+  .live-heading__metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+  .live-mini-metric{min-width:0;padding:7px 6px;gap:4px}
+  .live-mini-metric span{font-size:7px}
+  .live-mini-metric b{font-size:15px}
+  .camera-frame{min-height:200px}
+}
+/* Keep the camera WebSocket mounted behind the event list on the auxiliary monitor. */
+.display-video-layer{position:absolute;inset:0;visibility:hidden;pointer-events:none}
+.camera-display__viewport.is-video .display-video-layer{visibility:visible}
+.camera-display__viewport.is-events .display-events{position:relative;inset:auto;min-height:100%;padding:4px 0 18px;box-sizing:border-box}
+.camera-display__viewport.is-events{overflow-y:auto}
+.camera-display__viewport.is-events .display-video-layer{visibility:hidden}
