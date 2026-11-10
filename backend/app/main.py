@@ -4,6 +4,7 @@ LESS Backend — точка входа
 """
 
 from contextlib import asynccontextmanager
+import asyncio
 import json
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -130,12 +131,12 @@ async def run_ai_analyze():
 
 @app.post("/api/camera/start")
 async def camera_start():
-    return {"success": camera_service.start()}
+    stream_service.request_start()
+    return {"success": True, "message": "Запрос запуска общего видеопотока принят."}
 
 
 @app.post("/api/camera/stop")
 async def camera_stop():
-    camera_service.stop()
     stream_service.stop_stream()
     return {"success": True}
 
@@ -562,24 +563,32 @@ async def websocket_endpoint(websocket: WebSocket):
     await stream_service.connect(websocket)
     try:
         try:
-            handshake = json.loads(await websocket.receive_text())
-        except (json.JSONDecodeError, TypeError):
+            raw_handshake = await asyncio.wait_for(websocket.receive_text(), timeout=5)
+            if len(raw_handshake) > 4096:
+                await websocket.close(code=4400, reason="Handshake too large")
+                return
+            handshake = json.loads(raw_handshake)
+            if not isinstance(handshake, dict):
+                raise ValueError("Invalid handshake")
+        except (json.JSONDecodeError, TypeError, ValueError, asyncio.TimeoutError):
             await websocket.close(code=4401, reason="Authentication required")
-            stream_service.disconnect(websocket)
             return
         token = handshake.get("token", "") if handshake.get("type") == "auth" else ""
         actor = admin_auth_service.authenticate(token)
         if not actor:
             await websocket.close(code=4401, reason="Unauthorized")
-            stream_service.disconnect(websocket)
             return
+        stream_service.register(websocket)
         await websocket.send_json({"type": "auth_ok", "user": actor})
         while True:
             data = await websocket.receive_text()
             if data == "start_stream":
                 stream_service.request_start()
             elif data == "stop_stream":
-                stream_service.stop_stream()
+                if actor["role"] == "security":
+                    await websocket.send_json({"type": "error", "code": "forbidden", "message": "Недостаточно прав для остановки общего видеопотока."})
+                else:
+                    stream_service.stop_stream()
             else:
                 await websocket.send_json({"type": "echo", "payload": {"message": data}})
     except WebSocketDisconnect:
