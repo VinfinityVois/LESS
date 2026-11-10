@@ -91,7 +91,7 @@ class TamperEvidentAudit:
             }
             digest = self._record_hash(body)
             record = {**body, "hmac": digest}
-            payload = self._canonical(record) + b"\\n"
+            payload = self._canonical(record) + b"\n"
             flags = os.O_WRONLY | os.O_CREAT | os.O_APPEND
             fd = os.open(self.path, flags, 0o600)
             try:
