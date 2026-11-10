@@ -18,7 +18,7 @@ class FaceRecognitionService:
     DETECTOR_PATH = Path(__file__).resolve().parents[2] / "models" / "face_detection_yunet_2023mar.onnx"
     RECOGNIZER_PATH = Path(__file__).resolve().parents[2] / "models" / "face_recognition_sface_2021dec.onnx"
     MAX_IMAGE_BYTES = 5_000_000
-    MATCH_THRESHOLD = 0.42
+    MATCH_THRESHOLD = 0.363
     AMBIGUITY_MARGIN = 0.08
 
     def __init__(self) -> None:
