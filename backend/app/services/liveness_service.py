@@ -116,8 +116,12 @@ class LivenessService:
                     samples = [self._landmarks(frame, mesh) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p, (33, 160, 158, 133, 153, 144)) + self._ear(p, (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
-                        passed = max(ears) > 0.21 and min(ears) < 0.17 and (max(ears) - min(ears)) > 0.055
-                        metric = round(max(ears) - min(ears), 4)
+                        # Eight samples across ~1.5s make a short blink less likely to
+                        # fall between frames. Keep both an open-eye and closed-eye
+                        # observation; a small noisy landmark fluctuation is not enough.
+                        peak, trough = max(ears), min(ears)
+                        passed = peak > 0.20 and trough < 0.18 and (peak - trough) > 0.045
+                        metric = round(peak - trough, 4)
                     elif action == "turn_head":
                         yaws = [self._yaw(p) for p in samples]
                         passed = max(yaws) - min(yaws) > 0.12
@@ -130,10 +134,18 @@ class LivenessService:
                         passed, metric = False, 0.0
                     results.append({"action": action, "passed": bool(passed), "signal_delta": metric})
                     if not passed:
-                        return {"verified": False, "reason": "challenge_action_failed", "results": results}
+                        return {
+                            "verified": False,
+                            "reason": "challenge_action_failed",
+                            "failed_action": action,
+                            "signal_delta": metric,
+                            "results": results,
+                        }
         except (ValueError, RuntimeError) as exc:
             return {"verified": False, "reason": str(exc), "results": results}
         except Exception:
+            from loguru import logger
+            logger.exception("Liveness verification engine failed")
             return {"verified": False, "reason": "liveness_engine_unavailable", "results": results}
 
         proof = secrets.token_urlsafe(32)
