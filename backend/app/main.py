@@ -286,7 +286,21 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
 async def verify_liveness(body: LivenessVerifyRequest, request: Request):
     result = liveness_service.verify(body.challenge_id, request.state.admin["id"], body.user_id, [item.model_dump() for item in body.evidence])
     if not result.get("verified"):
-        raise HTTPException(status_code=422, detail=result.get("reason", "Проверка присутствия не пройдена."))
+        reason = result.get("reason", "Проверка присутствия не пройдена.")
+        action = result.get("failed_action")
+        message = {
+            "challenge_action_failed": "Не удалось уверенно подтвердить действие перед камерой.",
+            "insufficient_frames": "Недостаточно кадров для проверки. Повторите действие.",
+            "challenge_sequence_mismatch": "Последовательность действий не совпала с заданием. Начните заново.",
+            "liveness_engine_unavailable": "Модуль проверки присутствия временно недоступен.",
+        }.get(reason, reason)
+        raise HTTPException(status_code=422, detail={
+            "code": reason,
+            "message": message,
+            "failed_action": action,
+            "signal_delta": result.get("signal_delta"),
+            "results": result.get("results", []),
+        })
     return result
 
 
