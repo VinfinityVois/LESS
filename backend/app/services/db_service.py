@@ -454,6 +454,15 @@ class DBService:
             "glasses": glasses, "mask": mask, "face_shape": face_shape,
             "landmark_model": "MediaPipe Face Landmarker · 478 points",
             "landmark_regions": ["face_outline", "eyes", "nose", "mouth", "facial_contour"],
+            "landmark_indices": {
+                "left_eye": [33, 133, 159, 145],
+                "right_eye": [362, 263, 386, 374],
+                "nose": [168, 6, 197, 5, 4, 1, 2],
+                "mouth": [61, 291, 0, 17],
+                "left_ear_side_anchor": [234],
+                "right_ear_side_anchor": [454],
+            },
+            "ear_note": "Face mesh provides lateral contour anchors, not anatomical ear landmarks.",
             "observation_source": "operator_confirmed",
         }, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
         with self._get_conn() as conn:
