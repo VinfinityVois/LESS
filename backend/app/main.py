@@ -161,19 +161,22 @@ async def run_ai_analyze():
 
 
 @app.post("/api/ai/anomaly/analyze")
-async def run_ml_anomaly_analysis():
+async def run_ml_anomaly_analysis(request: Request):
     """Run advisory cohort anomaly analysis; never changes access decisions."""
     logs = db_service.get_recent_logs(limit=5000)
-    return ml_anomaly_detector.analyze(logs)
+    result = ml_anomaly_detector.analyze(logs)
+    admin_auth_service.audit(request.state.admin["id"], "ai.anomaly_analysis_run", "access_logs", f"status={result.get('status')}; anomalies={result.get('anomaly_count', 0)}")
+    return result
 
 
 @app.post("/api/ai/incidents/analyze")
-async def analyze_security_incidents():
+async def analyze_security_incidents(request: Request):
     """Correlate rule and ML signals into advisory, auditable incidents."""
     logs = db_service.get_recent_logs(limit=1000)
     ml_result = ml_anomaly_detector.analyze(logs)
     candidates = incident_correlation_engine.build_incidents(logs, ml_result)
     persisted = [db_service.upsert_security_incident(item) for item in candidates]
+    admin_auth_service.audit(request.state.admin["id"], "ai.incident_analysis_run", "security_incidents", f"ml_status={ml_result.get('status')}; generated={len(persisted)}")
     return {"ml_status": ml_result.get("status"), "generated": len(persisted), "incidents": persisted}
 
 
@@ -183,10 +186,11 @@ async def list_security_incidents(limit: int = Query(100, ge=1, le=500), status:
 
 
 @app.patch("/api/ai/incidents/{incident_id}")
-async def update_security_incident(incident_id: int, body: IncidentStatusRequest):
+async def update_security_incident(incident_id: int, body: IncidentStatusRequest, request: Request):
     incident = db_service.update_security_incident_status(incident_id, body.status)
     if not incident:
         raise HTTPException(status_code=404, detail="Инцидент не найден.")
+    admin_auth_service.audit(request.state.admin["id"], "security.incident_status_updated", str(incident_id), f"status={body.status}")
     return incident
 
 
@@ -196,10 +200,11 @@ async def local_ai_assistant_status():
 
 
 @app.post("/api/ai/assistant/explain")
-async def explain_security_incident(body: IncidentAssistantRequest):
+async def explain_security_incident(body: IncidentAssistantRequest, request: Request):
     incident = db_service.get_security_incident(body.incident_id)
     if not incident:
         raise HTTPException(status_code=404, detail="Инцидент не найден.")
+    admin_auth_service.audit(request.state.admin["id"], "ai.incident_explanation_requested", str(body.incident_id), "Запрошено локальное объяснение инцидента")
     return await local_ai_assistant.explain_incident(incident, body.question)
 
 
