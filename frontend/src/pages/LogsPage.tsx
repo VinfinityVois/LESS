@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { CalendarDays, Download, Archive, RefreshCw } from "lucide-react";
+import { notify } from "../services/notifications";
 import { getLogDays, getLogDay, exportLogs, type LogDay, type DailyLogEvent } from "../services/api";
 
 function fmt(iso?: string | null, timeOnly = false) {
@@ -63,7 +64,8 @@ export default function LogsPage() {
       link.click();
       link.remove();
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch { setError("Не удалось экспортировать журнал."); }
+      notify(`Экспорт журнала подготовлен · ${day || "весь архив"}`, "success");
+    } catch { setError("Не удалось экспортировать журнал."); notify("Не удалось экспортировать журнал.", "error"); }
   };
   return <section className="content-section logs-page">
     <div className="page-heading"><div><span className="eyebrow">АУДИТ ДОСТУПА</span><h1>Журнал событий</h1><p>Текущий день и архив завершённых суток. История сохраняется в базе и доступна для экспорта.</p></div><div className="users-toolbar-actions"><button className="users-button" onClick={() => void loadDays()}><RefreshCw size={15}/> Обновить</button><button className="users-button users-button--primary" onClick={() => void download()}><Download size={15}/> Экспорт дня</button><button className="users-button" onClick={() => void download("")}><Download size={15}/> Весь архив</button></div></div>

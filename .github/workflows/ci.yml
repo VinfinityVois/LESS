@@ -7,11 +7,13 @@ on:
       - main
       - feat/admin-users-biometric-workflow
       - feat/pad-guest-archive-security-testing
+      - feat/pad-camera-export-test-suite
   push:
     branches:
       - feat/admin-users-biometric-workflow
       - feat/biometric-ai-analytics
       - feat/pad-guest-archive-security-testing
+      - feat/pad-camera-export-test-suite
 
 jobs:
   frontend:

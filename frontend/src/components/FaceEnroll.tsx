@@ -38,6 +38,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const lastVideoTime = useRef(-1);
   const lastDetectAt = useRef(0);
   const lastMeshAt = useRef(0);
+  const lastUiUpdateAt = useRef(0);
+  const latestLandmarksRef = useRef<Array<{x:number;y:number;z:number}> | null>(null);
   const [meshEdges, setMeshEdges] = useState<[number, number][]>(MESH_EDGES);
   const [stage, setStage] = useState<Stage>("liveness");
   const [challenge, setChallenge] = useState<{challenge_id:string;actions:string[];instructions:Record<string,string>} | null>(null);
@@ -117,8 +119,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
             if (face?.length) {
               setFaceFound(true);
               const normalizedLandmarks = face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 }));
-              setLandmarks(normalizedLandmarks);
-              if (performance.now() - lastMeshAt.current >= 500) {
+              latestLandmarksRef.current = normalizedLandmarks;
+              const now = performance.now();
+              if (now - lastUiUpdateAt.current >= 200) { lastUiUpdateAt.current = now; setLandmarks(normalizedLandmarks); }
+              if (now - lastMeshAt.current >= 900) {
                 lastMeshAt.current = performance.now();
                 setMeshEdges(buildDynamicMesh(normalizedLandmarks));
               }
@@ -137,7 +141,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
               const estimate = Math.max(-90, Math.min(90, noseOffset * 110));
               setYaw(estimate);
               setQuality(Math.round(Math.max(0, Math.min(100, 100 - Math.abs(estimate) * .45))));
-            } else { setFaceFound(false); setLandmarks(null); setMeshEdges(MESH_EDGES); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); setFaceShape("НЕ ОПРЕДЕЛЁН"); }
+            } else { latestLandmarksRef.current = null; setFaceFound(false); setLandmarks(null); setMeshEdges(MESH_EDGES); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); setFaceShape("НЕ ОПРЕДЕЛЁН"); }
           }
           rafRef.current = requestAnimationFrame(tick);
         };
@@ -175,14 +179,15 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
 
   const capture = () => {
     const video = videoRef.current, canvas = canvasRef.current;
-    if (!video || !canvas || !faceFound) return;
+    const captureLandmarks = latestLandmarksRef.current || landmarks;
+    if (!video || !canvas || !faceFound || !captureLandmarks?.length) return;
     const width = video.videoWidth, height = video.videoHeight;
     canvas.width = width; canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.save(); ctx.translate(width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, width, height); ctx.restore();
-    const faceX = landmarks!.map((p) => p.x * width);
-    const faceY = landmarks!.map((p) => p.y * height);
+    const faceX = captureLandmarks.map((p) => p.x * width);
+    const faceY = captureLandmarks.map((p) => p.y * height);
     const left = Math.max(0, Math.floor(Math.min(...faceX) - width * .025));
     const top = Math.max(0, Math.floor(Math.min(...faceY) - height * .025));
     const right = Math.min(width, Math.ceil(Math.max(...faceX) + width * .025));
@@ -194,9 +199,9 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const lightScore = mean > 55 && mean < 210 ? 100 : Math.max(15, 100 - Math.abs(mean - 130));
     const contrastScore = Math.min(100, deviation * 1.8);
     const score = Math.round(lightScore * .65 + contrastScore * .35);
-    const eyeDistance = Math.max(.001, Math.hypot(landmarks![33].x - landmarks![263].x, landmarks![33].y - landmarks![263].y));
-    const origin = landmarks![1];
-    const template = landmarks!.map((point) => [
+    const eyeDistance = Math.max(.001, Math.hypot(captureLandmarks[33].x - captureLandmarks[263].x, captureLandmarks[33].y - captureLandmarks[263].y));
+    const origin = captureLandmarks[1];
+    const template = captureLandmarks.map((point) => [
       Number(((point.x - origin.x) / eyeDistance).toFixed(5)),
       Number(((point.y - origin.y) / eyeDistance).toFixed(5)),
       Number((((point.z ?? 0) - (origin.z ?? 0)) / eyeDistance).toFixed(5)),
@@ -284,9 +289,9 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
       const frames: string[] = [];
-      // Three short capture bursts (12 frames each). One reusable canvas avoids
-      // allocating 36 canvas/context objects during a single action.
-      const burstCount = 3;
+      // Blink keeps three 12-frame windows for robust EAR evaluation;
+      // other actions need only two windows. One canvas is reused throughout.
+      const burstCount = action === "blink" ? 3 : 2;
       const framesPerBurst = 12;
       const firstVideo = videoRef.current;
       if (!firstVideo || firstVideo.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
@@ -296,17 +301,17 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       frameCanvas.height = Math.max(1, Math.round(firstVideo.videoHeight * scale));
       const ctx = frameCanvas.getContext("2d");
       if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
-      await wait(250);
+      await wait(120);
       for (let burst = 0; burst < burstCount; burst++) {
         for (let i = 0; i < framesPerBurst; i++) {
           const video = videoRef.current;
           if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
           ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-          frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
+          frames.push(frameCanvas.toDataURL("image/jpeg", 0.58));
           setCaptureProgress(Math.round((frames.length / (burstCount * framesPerBurst)) * 100));
-          await wait(90);
+          await wait(70);
         }
-        if (burst < burstCount - 1) await wait(180);
+        if (burst < burstCount - 1) await wait(120);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
       setChallengeEvidence(nextEvidence);
@@ -337,7 +342,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   };
 
   const expected = stage === "front" ? Math.abs(yaw) < 12 : Math.abs(yaw) > 18;
-  const canCapture = modelReady && faceFound && expected && (stage === "front" || stage === "profile");
+  const faceWidthRatio = landmarks?.length ? Math.max(...landmarks.map((p) => p.x)) - Math.min(...landmarks.map((p) => p.x)) : 0;
+  const faceHeightRatio = landmarks?.length ? Math.max(...landmarks.map((p) => p.y)) - Math.min(...landmarks.map((p) => p.y)) : 0;
+  const faceScaleReady = faceWidthRatio >= .18 && faceHeightRatio >= .22;
+  const canCapture = modelReady && faceFound && faceScaleReady && expected && (stage === "front" || stage === "profile");
   const outline = landmarks?.length ? FACE_OVAL.map((index) => landmarks[index]).filter((p): p is {x:number;y:number;z:number} => p !== undefined).map((p) => `${p.x*1000},${p.y*1000}`).join(" ") : "";
   const shotsAcceptable = (shots.front?.quality ?? 0) >= 55 && (shots.profile?.quality ?? 0) >= 55;
   const overallLivenessProgress = challenge ? Math.round(((challengeIndex + captureProgress / 100) / challenge.actions.length) * 100) : 0;

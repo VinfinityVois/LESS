@@ -14,8 +14,9 @@ import IncidentsPage from "./IncidentsPage";
 import BiometricLabPage from "./BiometricLabPage";
 import AdminAccountsPage from "./AdminAccountsPage";
 import FaceEnroll from "../components/FaceEnroll";
+import SecurityLabPage from "./SecurityLabPage";
 
-type NavId = "live" | "logs" | "incidents" | "biometrics" | "users" | "diagnostics" | "guests" | "admins";
+type NavId = "live" | "logs" | "incidents" | "biometrics" | "users" | "diagnostics" | "guests" | "admins" | "testing";
 const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "live", label: "Мониторинг", icon: Video, group: "ОПЕРАТИВНЫЙ ПОСТ" },
   { id: "logs", label: "Журнал событий", icon: History, group: "ОПЕРАТИВНЫЙ ПОСТ" },
@@ -24,11 +25,12 @@ const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "users", label: "Сотрудники и доступ", icon: Users, group: "УПРАВЛЕНИЕ" },
   { id: "guests", label: "Гостевые пропуска", icon: BadgeCheck, group: "УПРАВЛЕНИЕ" },
   { id: "diagnostics", label: "Оборудование", icon: SlidersHorizontal, group: "СИСТЕМА" },
+  { id: "testing", label: "Лаборатория испытаний", icon: Activity, group: "СИСТЕМА" },
   { id: "admins", label: "Администраторы", icon: ShieldCheck, group: "АДМИНИСТРИРОВАНИЕ" },
 ];
 const pageTitles: Record<NavId, string> = {
   live: "Пост охраны", logs: "Журнал событий", incidents: "Центр инцидентов", biometrics: "Лаборатория биометрии",
-  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли",
+  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли", testing: "Лаборатория испытаний",
 };
 function DeviceState({ icon: Icon, label, value, ok }: { icon: typeof Camera; label: string; value: string; ok: boolean }) {
   return <div className="device-state"><span className={`device-state__icon ${ok ? "is-ok" : "is-off"}`}><Icon size={14} /></span><span className="device-state__label">{label}</span><span className={`device-state__value ${ok ? "is-ok" : "is-off"}`}>{value}</span></div>;
@@ -53,6 +55,19 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const [guestDialogHours, setGuestDialogHours] = useState("2");
   const [guestActionBusy, setGuestActionBusy] = useState<number | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
+  const [toast, setToast] = useState<{ message: string; kind: "success" | "error" | "info" } | null>(null);
+  useEffect(() => {
+    let timer = 0;
+    const receiveNotice = (event: Event) => {
+      const detail = (event as CustomEvent<{ message?: string; kind?: "success" | "error" | "info" }>).detail;
+      if (!detail?.message) return;
+      setToast({ message: detail.message, kind: detail.kind || "success" });
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setToast(null), 4200);
+    };
+    window.addEventListener("less:notify", receiveNotice);
+    return () => { window.removeEventListener("less:notify", receiveNotice); window.clearTimeout(timer); };
+  }, []);
 
   useEffect(() => {
     void refresh();
@@ -156,6 +171,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   ];
 
   return <div className="less-shell">
+    {toast && <div className={`fixed right-6 top-20 z-[120] max-w-md rounded-lg border px-4 py-3 shadow-2xl text-sm ${toast.kind === "error" ? "border-red-400/40 bg-red-950/90 text-red-100" : "border-primary/30 bg-surface-low text-primary"}`} role="status" aria-live="polite">{toast.message}</div>}
     <aside className={`less-sidebar is-pinned ${mobileNav ? "is-open" : ""}`} aria-label="Боковая навигация">
       <div className="brand-lockup"><div className="brand-mark"><RadioTower size={21} strokeWidth={1.8} /></div><div className="brand-copy"><div className="brand-name">LESS<span> / </span>CONTROL</div><div className="brand-subtitle">LOCAL ENTRY SECURITY SYSTEM</div></div><span className="brand-version">0.1</span></div>
       <div className="site-selector"><div className="site-selector__top"><span>ОБЪЕКТ НАБЛЮДЕНИЯ</span><span className="site-selector__code">LOC–01</span></div><div className="site-selector__name">Главный контрольно-пропускной пункт</div><div className="site-selector__bottom"><span className="site-live-dot" /> ЛОКАЛЬНЫЙ КОНТУР</div></div>
@@ -170,6 +186,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
         {nav === "live" && <LivePage status={status} />}
         {nav === "users" && <UsersPage onEnroll={setEnrollUser} readOnly={admin.role === "security"} />}
         {nav === "logs" && <LogsPage />}
+        {nav === "testing" && <SecurityLabPage />}
         {nav === "admins" && admin.role === "superadmin" && <AdminAccountsPage currentAdminId={admin.id} />}
         {nav === "guests" && <section className="content-section guest-page"><div className="page-heading"><div><span className="eyebrow">УПРАВЛЕНИЕ ДОСТУПОМ</span><h1>Гостевые пропуска</h1><p>Именные временные разрешения с привязкой к точке прохода и сроку действия.</p></div></div><div className="guest-archive-toolbar"><button className={guestArchiveOpen ? "users-button" : "users-button users-button--primary"} onClick={() => setGuestArchiveOpen(false)}>Действующие · {guestPasses.length}</button><button className={guestArchiveOpen ? "users-button users-button--primary" : "users-button"} onClick={() => { setGuestArchiveOpen(true); void refreshGuestArchive(); }}>Архив · {guestArchive.length}</button></div>{!guestArchiveOpen && <div className="surface-panel guest-create-card"><div className="guest-create-fields"><label>Кому выдаётся<input value={guestName} onChange={(e)=>setGuestName(e.target.value)} placeholder="ФИО гостя / компания"/></label><label>Куда разрешён проход<select value={guestDoor} onChange={(e)=>setGuestDoor(e.target.value)}><option value="main">Главный вход</option><option value="server_room">Серверная</option></select></label><label>Срок действия<select value={guestHours} onChange={(e)=>setGuestHours(Number(e.target.value))}><option value={1}>1 час</option><option value={2}>2 часа</option><option value={4}>4 часа</option><option value={8}>8 часов</option><option value={24}>24 часа</option><option value={72}>72 часа</option></select></label></div><button className="button-primary" onClick={() => void makeGuestCode()} disabled={guestBusy}>{guestBusy ? "Создание…" : "Выдать гостевой пропуск"}<ChevronRight size={15}/></button>{guestMsg && <div className={`inline-result ${guestMsg.startsWith("Не удалось") ? "is-error" : ""}`} role="status">{guestMsg}</div>}</div>}{!guestArchiveOpen && <div className="guest-pass-grid">{guestPasses.map((pass)=><article className="guest-pass-card" key={pass.id}><div className="guest-pass-card__top"><span className="eyebrow">ВРЕМЕННЫЙ ДОПУСК · #{pass.id}</span><span className={"guest-pass-state " + (pass.active ? "is-active" : "is-inactive")}>{pass.status === "blocked" ? "ЗАБЛОКИРОВАН" : pass.status === "closed" ? "ЗАКРЫТ" : pass.active ? "АКТИВЕН" : "ИСТЁК / ИСЧЕРПАН"}</span></div><h2>{pass.label}</h2><div className="guest-pass-code">•••• {pass.code_prefix}</div><div className="guest-pass-meta"><span>ВЫДАН</span><b>{new Date(pass.created_at).toLocaleString("ru-RU")}</b><span>ДЕЙСТВУЕТ ДО</span><b>{new Date(pass.expires_at).toLocaleString("ru-RU")}</b><span>ОСТАЛОСЬ</span><b className={guestCountdown(pass.expires_at) === "СРОК ИСТЁК" ? "guest-countdown is-expired" : "guest-countdown"}>{guestCountdown(pass.expires_at)}</b><span>ТОЧКА ПРОХОДА</span><b>{pass.door_ids.map((door)=>door==="server_room"?"Серверная":"Главный вход").join(", ")}</b><span>ИСПОЛЬЗОВАНО</span><b>{pass.uses} / {pass.max_uses}</b></div><div className="guest-pass-actions"><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"close")}>Закрыть</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"reset")}>Обнулить</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"restore")}>Восстановить</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"block")}>Заблокировать</button><button disabled={guestActionBusy===pass.id} onClick={()=>{setGuestDialogHours("2");setGuestDialog({id:pass.id,action:"extend"});}}>Продлить</button><button disabled={guestActionBusy===pass.id} onClick={()=>setGuestDialog({id:pass.id,action:"delete"})}>Удалить</button></div></article>)}{!guestPasses.length && <div className="guest-pass-empty"><BadgeCheck size={22}/><strong>Пока нет выданных пропусков</strong><span>Создайте гостевой пропуск — он появится отдельной карточкой с получателем, сроком и точкой прохода.</span></div>}</div>}
         {guestArchiveOpen && <div className="guest-archive-list">{Object.entries(guestArchiveDays).map(([day, passes])=><section className="guest-archive-day" key={day}><header><b>{day}</b><span>{passes.length} пропусков</span></header><div className="guest-pass-grid guest-pass-grid--archive">{passes.map((pass)=><article className="guest-pass-card guest-pass-card--archived" key={pass.id}><div className="guest-pass-card__top"><span className="eyebrow">АРХИВ · #{pass.id}</span><span className="guest-pass-state is-inactive">{pass.archive_reason === "expired" ? "ИСТЁК" : pass.archive_reason === "uses_exhausted" ? "ЛИМИТ ИСЧЕРПАН" : "УДАЛЁН ВРУЧНУЮ"}</span></div><h2>{pass.label}</h2><div className="guest-pass-meta"><span>ВЫДАН</span><b>{new Date(pass.created_at).toLocaleString("ru-RU")}</b><span>ДЕЙСТВОВАЛ ДО</span><b>{new Date(pass.expires_at).toLocaleString("ru-RU")}</b><span>АРХИВИРОВАН</span><b>{new Date(pass.archived_at).toLocaleString("ru-RU")}</b><span>ИСПОЛЬЗОВАНО</span><b>{pass.uses} / {pass.max_uses}</b></div></article>)}</div></section>)}{!guestArchive.length && <div className="guest-pass-empty"><Archive size={22}/><strong>Архив пока пуст</strong><span>Здесь появятся истёкшие, исчерпанные и вручную удалённые пропуска.</span></div>}</div>}
