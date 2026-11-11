@@ -174,7 +174,7 @@ async def list_security_incidents(limit: int = Query(100, ge=1, le=500), status:
 
 @app.get("/api/ai/assistant/status")
 async def local_ai_assistant_status():
-    return local_ai_assistant.status()
+    return await local_ai_assistant.status()
 
 
 @app.post("/api/ai/assistant/explain")
