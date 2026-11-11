@@ -157,6 +157,7 @@ export default function IncidentsPage({ canAnalyze = true }: { canAnalyze?: bool
                   <div><span>ПЕРИОД</span><strong>{formatTime(incident.first_seen)} — {formatTime(incident.last_seen)}</strong></div>
                   <div><span>ДВЕРИ</span><strong>{incident.evidence?.doors?.join(", ") || "Не указаны"}</strong></div>
                   <div><span>СВЯЗАННЫЕ СОБЫТИЯ</span><strong>{incident.evidence?.event_ids?.join(", ") || "Нет списка"}</strong></div>
+                  <div><span>ML MODEL</span><strong>{incident.evidence?.ml_model ? incident.evidence.ml_model + " " + (incident.evidence.ml_model_version || "") : "Не использовалась"}</strong></div>
                   <div className="incident-factors"><span>ФАКТОРЫ РИСКА</span>{(incident.evidence?.factors || []).map((factor, index) => <div key={factor.code + index}><b>{factorLabel(factor.code)}</b><em>+{factor.points}</em>{factor.count ? <small>{factor.count} событий</small> : null}</div>)}</div>
                   <p><Info size={13} /> Оценка риска — эвристический индикатор, а не вероятность нарушения и не основание для автоматического отказа в доступе.</p>
                 </div>}
