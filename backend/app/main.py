@@ -114,14 +114,14 @@ async def protect_control_plane(request: Request, call_next):
         request.state.admin = actor
         if actor["role"] == "security" and (
             (path.startswith("/api/users") and request.method in {"POST", "PATCH", "DELETE"})
-            or path.startswith("/api/biometrics")
+            or (path.startswith("/api/biometrics") and path != "/api/biometrics/recognize")
             or path.startswith("/api/camera")
             or (path.startswith("/api/serial") and request.method != "GET")
             or path in {"/api/ai/analyze", "/api/ai/anomaly/analyze", "/api/ai/incidents/analyze"}
             or path == "/api/access/check"
         ):
             return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для этой операции."})
-        if path.startswith("/api/biometrics") and actor["role"] == "security":
+        if path.startswith("/api/biometrics") and path != "/api/biometrics/recognize" and actor["role"] == "security":
             return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для биометрической регистрации."})
         if path.startswith("/api/auth/admins") and actor["role"] != "superadmin":
             return JSONResponse(status_code=403, content={"detail": "Управлять администраторами может только суперадминистратор."})
@@ -357,7 +357,7 @@ class FaceRecognitionRequest(BaseModel):
 
 
 @app.post("/api/biometrics/recognize")
-async def recognize_face_in_monitoring(body: FaceRecognitionRequest):
+async def recognize_face_in_monitoring(body: FaceRecognitionRequest, request: Request):
     """Identify a visible employee independently of credentials; never grants access."""
     try:
         observed = await asyncio.to_thread(face_recognition_service.embedding_from_image, body.frame)
@@ -378,10 +378,13 @@ async def recognize_face_in_monitoring(body: FaceRecognitionRequest):
         return {"status": "unknown", "subject": None, "similarity": round(best["score"] * 100, 1) if best else None}
     if second and best["score"] - second["score"] < face_recognition_service.AMBIGUITY_MARGIN:
         return {"status": "ambiguous", "subject": None, "similarity": round(best["score"] * 100, 1)}
+    subject_data = {"id": best["user_id"], "name": best["name"], "position": best["position"]}
+    if request.state.admin["role"] != "security":
+        subject_data["photo_data_url"] = best.get("photo_data_url")
     return {
         "status": "identified",
         "similarity": round(best["score"] * 100, 1),
-        "subject": {"id": best["user_id"], "name": best["name"], "position": best["position"], "photo_data_url": best.get("photo_data_url")},
+        "subject": subject_data,
         "note": "Идентификация лица не является разрешением на проход.",
     }
 
