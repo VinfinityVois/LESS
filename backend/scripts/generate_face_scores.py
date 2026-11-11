@@ -28,8 +28,8 @@ def _safe_image_path(root: Path, value: str, line_number: int) -> Path:
     if candidate.stat().st_size <= 0 or candidate.stat().st_size > face_recognition_service.MAX_IMAGE_BYTES:
         raise ValueError(f"Строка {line_number}: размер изображения недопустим.")
     mime, _ = mimetypes.guess_type(candidate.name)
-    if not mime or not mime.startswith("image/"):
-        raise ValueError(f"Строка {line_number}: неподдерживаемый тип файла изображения.")
+    if mime not in {"image/jpeg", "image/png", "image/webp", "image/bmp", "image/tiff"}:
+        raise ValueError(f"Строка {line_number}: поддерживаются только JPEG, PNG, WEBP, BMP и TIFF.")
     return candidate
 
 
@@ -62,7 +62,7 @@ def generate_scores(manifest: Path, dataset_root: Path):
                 if right_path not in cache:
                     cache[right_path] = _embedding(right_path)
                 score = face_recognition_service.cosine_similarity(cache[left_path], cache[right_path])
-            except (RuntimeError, ValueError) as exc:
+            except Exception as exc:
                 raise ValueError(f"Строка {line_number}: не удалось получить embedding ({type(exc).__name__}).") from exc
             yield {
                 "label": label,
@@ -82,8 +82,14 @@ def main() -> int:
     repository_root = Path(__file__).resolve().parents[2]
     dataset_root = args.dataset_root.resolve()
     output_path = args.output.resolve()
-    if output_path == args.manifest.resolve():
+    manifest_path = args.manifest.resolve()
+    if output_path == manifest_path:
         parser.error("Файл результатов не может перезаписывать manifest.")
+    try:
+        manifest_path.relative_to(repository_root)
+        parser.error("Manifest с путями биометрического датасета должен храниться вне репозитория LESS.")
+    except ValueError:
+        pass
     try:
         dataset_root.relative_to(repository_root)
         parser.error("Биометрический датасет должен храниться вне репозитория LESS.")
@@ -98,17 +104,21 @@ def main() -> int:
     if not face_recognition_service.ready:
         parser.error("YuNet/SFace models are missing. Run python scripts/download_face_models.py first.")
 
-    with output_path.open("w", encoding="utf-8", newline="") as output:
-        writer = csv.DictWriter(output, fieldnames=["label", "similarity", "condition", "camera"])
-        writer.writeheader()
-        try:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    counts = {"genuine": 0, "impostor": 0}
+    try:
+        with output_path.open("w", encoding="utf-8", newline="") as output:
+            writer = csv.DictWriter(output, fieldnames=["label", "similarity", "condition", "camera"])
+            writer.writeheader()
             for result in generate_scores(args.manifest, args.dataset_root):
                 writer.writerow(result)
-        except (OSError, ValueError) as exc:
-            output.close()
-            output_path.unlink(missing_ok=True)
-            print(str(exc), file=sys.stderr)
-            return 2
+                counts[result["label"]] += 1
+        if not counts["genuine"] or not counts["impostor"]:
+            raise ValueError("Для калибровки нужны и genuine, и impostor пары.")
+    except (OSError, ValueError) as exc:
+        output_path.unlink(missing_ok=True)
+        print(str(exc), file=sys.stderr)
+        return 2
     print(f"Similarity scores written: {output_path} (images and embeddings were not copied)")
     return 0
 
