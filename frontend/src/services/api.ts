@@ -372,3 +372,8 @@ export async function explainSecurityIncident(incidentId: number, question = "")
   }, { timeout: 30000 });
   return data;
 }
+
+export async function updateSecurityIncidentStatus(incidentId: number, status: "open" | "resolved" | "dismissed") {
+  const { data } = await api.patch<SecurityIncident>(`/api/ai/incidents/${incidentId}`, { status });
+  return data;
+}
