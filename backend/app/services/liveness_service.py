@@ -110,7 +110,8 @@ class LivenessService:
             raise ValueError("Кадр не является корректным изображением.")
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        with self._landmarker_lock:\n            result = landmarker.detect(mp_image)
+        with self._landmarker_lock:
+            result = landmarker.detect(mp_image)
         faces = result.face_landmarks or []
         if len(faces) != 1:
             raise ValueError("В каждом кадре должно быть ровно одно обнаруженное лицо.")
