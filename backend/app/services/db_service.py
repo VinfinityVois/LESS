@@ -258,9 +258,17 @@ class DBService:
         with self._get_conn() as conn:
             row = conn.execute("""
                 SELECT u.*,
-                  (SELECT created_at FROM access_logs l WHERE l.user_id=u.id AND l.direction='in' AND l.event_type='granted' ORDER BY l.id DESC LIMIT 1) AS last_entry,
-                  (SELECT created_at FROM access_logs l WHERE l.user_id=u.id AND l.direction='out' AND l.event_type='granted' ORDER BY l.id DESC LIMIT 1) AS last_exit,
-                  (SELECT COUNT(*) FROM access_logs l WHERE l.user_id=u.id) AS total_events
+                  (SELECT created_at FROM (
+                    SELECT created_at,user_id,direction,event_type,id FROM access_logs
+                    UNION ALL SELECT created_at,user_id,direction,event_type,id FROM access_log_archive
+                  ) l WHERE l.user_id=u.id AND l.direction='in' AND l.event_type='granted' ORDER BY l.created_at DESC,l.id DESC LIMIT 1) AS last_entry,
+                  (SELECT created_at FROM (
+                    SELECT created_at,user_id,direction,event_type,id FROM access_logs
+                    UNION ALL SELECT created_at,user_id,direction,event_type,id FROM access_log_archive
+                  ) l WHERE l.user_id=u.id AND l.direction='out' AND l.event_type='granted' ORDER BY l.created_at DESC,l.id DESC LIMIT 1) AS last_exit,
+                  (SELECT COUNT(*) FROM (
+                    SELECT user_id FROM access_logs UNION ALL SELECT user_id FROM access_log_archive
+                  ) l WHERE l.user_id=u.id) AS total_events
                 FROM users u WHERE u.id=?
             """, (user_id,)).fetchone()
             if not row:
@@ -276,7 +284,10 @@ class DBService:
             user.pop("fingerprint_hash", None)
             if include_logs:
                 logs = conn.execute(
-                    "SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs WHERE user_id=? ORDER BY id DESC LIMIT 100",
+                    """SELECT * FROM (
+                         SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs
+                         UNION ALL SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_log_archive
+                       ) WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 100""",
                     (user_id,),
                 ).fetchall()
                 user["logs"] = [dict(item) for item in logs]
