@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - feat/admin-users-biometric-workflow
+      - feat/camera-performance-export-test-suite
 
 jobs:
   frontend:
