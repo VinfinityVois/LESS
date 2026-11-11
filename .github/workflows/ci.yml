@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install SQLCipher test dependencies
-        run: python -m pip install sqlcipher3==0.6.5 pydantic-settings loguru cryptography pyserial
+        run: python -m pip install sqlcipher3==0.6.5 pydantic-settings loguru cryptography pyserial scikit-learn
       - name: Test plaintext migration, encrypted backup and wrong-key rejection
         env:
           PYTHONPATH: backend
@@ -84,6 +84,37 @@ jobs:
         run: python -m pip install --upgrade pip pip-audit
       - name: Audit backend dependencies
         run: pip-audit -r backend/requirements.txt
+
+
+  security-sast:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install source scanners
+        run: python -m pip install --upgrade bandit semgrep
+      - name: High severity Python security findings
+        run: bandit -r backend/app -ll -ii
+      - name: Semgrep security report
+        continue-on-error: true
+        run: semgrep scan --config p/security-audit --config p/python --json --output semgrep-report.json
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload SAST report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: less-sast-report
+          path: semgrep-report.json
+          if-no-files-found: ignore
 
   persist-frontend-lockfile:
     needs: frontend
