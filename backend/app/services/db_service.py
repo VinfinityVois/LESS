@@ -616,7 +616,7 @@ class DBService:
             return int(cur.lastrowid)
 
     def archive_previous_days(self) -> int:
-        """Move completed UTC days to an archive table without discarding history."""
+        """Move completed local calendar days to an archive table without discarding history."""
         today = datetime.now().date().isoformat()
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
@@ -627,8 +627,8 @@ class DBService:
                    FROM access_logs WHERE date(created_at,'localtime') < ?""",
                 (now, today),
             )
-            archived = conn.execute("SELECT COUNT(*) AS n FROM access_logs WHERE substr(created_at,1,10) < ?", (today,)).fetchone()["n"]
-            conn.execute("DELETE FROM access_logs WHERE substr(created_at,1,10) < ?", (today,))
+            archived = conn.execute("SELECT COUNT(*) AS n FROM access_logs WHERE date(created_at,'localtime') < ?", (today,)).fetchone()["n"]
+            conn.execute("DELETE FROM access_logs WHERE date(created_at,'localtime') < ?", (today,))
             return int(archived)
 
     def get_recent_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
