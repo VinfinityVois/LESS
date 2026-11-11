@@ -194,7 +194,7 @@ async def export_logs(day: Optional[str] = Query(None)):
         rows = db_service.get_recent_logs(limit=100000)
         filename = "less-events-all.csv"
     output = io.StringIO()
-    writer = csv.writer(output, delimiter=";", lineterminator="\\n")
+    writer = csv.writer(output, delimiter=";", lineterminator="\n")
     writer.writerow(["id","date_time","method","uid","person","status","reason","door","direction"])
     for row in rows:
         writer.writerow([row.get("id"),row.get("created_at"),row.get("factor_used"),row.get("nfc_uid"),row.get("user_name") or row.get("user_id") or "Не определён",row.get("event_type"),row.get("reason"),row.get("door_id"),row.get("direction")])
