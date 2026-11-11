@@ -75,7 +75,14 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           setIdentitySimilarity(null);
           setSubjectStage("idle");
         }
-      } catch { /* recognition must not interrupt the live camera feed */ }
+      } catch (error: any) {
+        if (error?.response?.status === 422 && subjectStageRef.current === "identified") {
+          setCurrentSubject(null);
+          setIdentitySimilarity(null);
+          setSubjectStage("idle");
+        }
+        /* recognition must not interrupt the live camera feed */
+      }
       finally { recognitionBusyRef.current = false; }
     };
     reader.onerror = () => { recognitionBusyRef.current = false; };
