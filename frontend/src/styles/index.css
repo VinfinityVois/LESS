@@ -631,3 +631,5 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 @media(max-width:640px){.pad-form-grid{grid-template-columns:1fr}.pad-attack-select{grid-column:1}.pad-lab-side{grid-template-columns:1fr}.pad-lab-controls,.pad-challenge-actions{flex-wrap:wrap}.pad-video-frame{min-height:190px}}
 
 .pad-fingerprint-status{padding:12px;border:1px solid rgba(157,183,194,.1);border-radius:7px;background:rgba(255,255,255,.012)}.pad-fingerprint-status>div{display:flex;align-items:center;gap:7px;color:#718a8f}.pad-fingerprint-status>div span{color:#668087;font:8px var(--mono);letter-spacing:.1em}.pad-fingerprint-status>div b{margin-left:auto;font:8px var(--mono);letter-spacing:.08em}.pad-fingerprint-status>div b.is-ready{color:#91d8ad}.pad-fingerprint-status>div b.is-muted{color:#d3a978}.pad-fingerprint-status p{margin:8px 0 0;color:#7b9094;font-size:8px;line-height:1.6}
+
+.incident-subject-label{display:inline-flex;margin-top:5px;padding:3px 6px;color:#9bc9c5;background:rgba(97,216,208,.07);border:1px solid rgba(97,216,208,.12);border-radius:4px;font:8px var(--mono);letter-spacing:.03em}
