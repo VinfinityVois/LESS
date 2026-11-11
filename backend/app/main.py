@@ -375,7 +375,7 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
 
 
 @app.post("/api/biometrics/liveness/evaluation-trials")
-async def record_pad_evaluation_trial(body: PADTrialRequest):
+async def record_pad_evaluation_trial(body: PADTrialRequest, request: Request):
     if body.trial_class == "attack" and not body.attack_type.strip():
         raise HTTPException(status_code=422, detail="Для испытания атаки укажите её тип.")
     trial_id = db_service.record_pad_trial(
@@ -385,6 +385,12 @@ async def record_pad_evaluation_trial(body: PADTrialRequest):
         body.failure_reason,
         body.test_condition,
         body.camera_label,
+    )
+    admin_auth_service.audit(
+        request.state.admin["id"],
+        "biometric.pad_trial_recorded",
+        str(trial_id),
+        f"class={body.trial_class}; attack_type={body.attack_type}; accepted={body.accepted}; camera={body.camera_label}; condition={body.test_condition}",
     )
     return {"id": trial_id, "recorded": True}
 
