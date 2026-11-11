@@ -551,10 +551,13 @@ class DBService:
     def get_last_granted_direction(self, user_id: int, door_id: str) -> Optional[str]:
         with self._get_conn() as conn:
             row = conn.execute(
-                """SELECT direction FROM access_logs
+                """SELECT direction FROM (
+                     SELECT direction,created_at,id FROM access_logs
+                     UNION ALL SELECT direction,created_at,id FROM access_log_archive
+                   )
                    WHERE user_id=? AND door_id=? AND event_type='granted'
                      AND direction IN ('in','out')
-                   ORDER BY id DESC LIMIT 1""",
+                   ORDER BY created_at DESC,id DESC LIMIT 1""",
                 (user_id, door_id),
             ).fetchone()
             return row["direction"] if row else None
