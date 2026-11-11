@@ -378,7 +378,7 @@ export async function updateSecurityIncidentStatus(incidentId: number, status: "
   return data;
 }
 
-export async function recordPadTrial(body: { trial_class: "bona_fide" | "attack"; attack_type?: string; accepted: boolean; failure_reason?: string }) {
+export async function recordPadTrial(body: { trial_class: "bona_fide" | "attack"; attack_type?: string; accepted: boolean; failure_reason?: string; test_condition?: string; camera_label?: string }) {
   const { data } = await api.post<{ id: number; recorded: boolean }>("/api/biometrics/liveness/evaluation-trials", body);
   return data;
 }
@@ -387,6 +387,8 @@ export async function getPadEvaluationReport() {
     counts: { total: number; bona_fide: number; attacks: number };
     apcer: number; bpcer: number; acer: number;
     attack_species: Record<string, { presentations: number; false_accepts: number; apcer: number }>;
+    by_condition: Record<string, { trials: number; bona_fide: number; attacks: number; apcer: number | null; bpcer: number | null }>;
+    by_camera: Record<string, { trials: number; bona_fide: number; attacks: number; apcer: number | null; bpcer: number | null }>;
     warning: string;
   }; counts?: { total: number }; message?: string }>("/api/biometrics/liveness/evaluation-report");
   return data;
