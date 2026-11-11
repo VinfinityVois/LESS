@@ -1,7 +1,7 @@
-"""Offline evaluation helpers for face-match threshold calibration.
+"""Offline biometric verification metrics and threshold calibration.
 
-Input consists only of labeled similarity scores. Raw face images and embeddings
-must never be committed to the repository or included in evaluation reports.
+Only labeled similarity scores are accepted. Raw images/embeddings must never
+be stored in this report or committed to the repository.
 """
 from __future__ import annotations
 
@@ -21,23 +21,26 @@ class ThresholdMetrics:
     tar: float
 
 
+def _validated_scores(genuine_scores: Iterable[float], impostor_scores: Iterable[float]) -> tuple[list[float], list[float]]:
+    genuine = [float(score) for score in genuine_scores]
+    impostor = [float(score) for score in impostor_scores]
+    if not genuine or not impostor:
+        raise ValueError("Нужны непустые genuine и impostor выборки.")
+    if any(not -1.0 <= score <= 1.0 for score in genuine + impostor):
+        raise ValueError("Cosine similarity должна находиться в диапазоне [-1, 1].")
+    return genuine, impostor
+
+
 def evaluate_threshold(
     genuine_scores: Iterable[float],
     impostor_scores: Iterable[float],
     threshold: float,
 ) -> ThresholdMetrics:
-    genuine = [float(score) for score in genuine_scores]
-    impostor = [float(score) for score in impostor_scores]
-    if not genuine or not impostor:
-        raise ValueError("Нужны непустые genuine и impostor выборки.")
+    genuine, impostor = _validated_scores(genuine_scores, impostor_scores)
     if not -1.0 <= threshold <= 1.0:
         raise ValueError("Порог должен находиться в диапазоне [-1, 1].")
-    if any(not -1.0 <= score <= 1.0 for score in genuine + impostor):
-        raise ValueError("Все cosine similarity должны находиться в диапазоне [-1, 1].")
-
     false_accepts = sum(score >= threshold for score in impostor)
     false_rejects = sum(score < threshold for score in genuine)
-    far = false_accepts / len(impostor)
     frr = false_rejects / len(genuine)
     return ThresholdMetrics(
         threshold=threshold,
@@ -45,16 +48,16 @@ def evaluate_threshold(
         impostor_count=len(impostor),
         false_accepts=false_accepts,
         false_rejects=false_rejects,
-        far=far,
+        far=false_accepts / len(impostor),
         frr=frr,
         tar=1.0 - frr,
     )
 
 
 def wilson_interval(errors: int, total: int, z: float = 1.96) -> tuple[float, float]:
-    """95% Wilson interval by default; meaningful even when errors == 0."""
-    if total <= 0 or errors < 0 or errors > total:
-        raise ValueError("Некорректные errors/total для доверительного интервала.")
+    """Wilson score confidence interval (95% by default)."""
+    if total <= 0 or errors < 0 or errors > total or z <= 0:
+        raise ValueError("Некорректные errors/total/z для доверительного интервала.")
     p = errors / total
     z2 = z * z
     denominator = 1.0 + z2 / total
@@ -63,30 +66,45 @@ def wilson_interval(errors: int, total: int, z: float = 1.96) -> tuple[float, fl
     return max(0.0, center - margin), min(1.0, center + margin)
 
 
+def _roc_auc(curve: list[dict]) -> float:
+    points = sorted((row["far"], row["tar"]) for row in curve)
+    area = 0.0
+    for (x1, y1), (x2, y2) in zip(points, points[1:]):
+        area += (x2 - x1) * (y1 + y2) / 2.0
+    return area
+
+
 def calibrate_threshold(
     genuine_scores: Iterable[float],
     impostor_scores: Iterable[float],
     target_far: float,
 ) -> dict:
-    """Choose a low-FRR threshold satisfying target FAR, then report EER.
+    """Return a ROC curve and an offline threshold recommendation.
 
-    This is an offline recommendation only. It never changes production settings.
+    The recommendation is the lowest threshold satisfying target FAR, which
+    maximizes acceptance of genuine samples under that empirical constraint.
+    It never changes production configuration.
     """
-    genuine = [float(score) for score in genuine_scores]
-    impostor = [float(score) for score in impostor_scores]
-    if not genuine or not impostor:
-        raise ValueError("Нужны непустые genuine и impostor выборки.")
+    genuine, impostor = _validated_scores(genuine_scores, impostor_scores)
     if not 0.0 <= target_far <= 1.0:
         raise ValueError("target_far должен находиться в диапазоне [0, 1].")
-    all_scores = genuine + impostor
-    if any(not -1.0 <= score <= 1.0 for score in all_scores):
-        raise ValueError("Все cosine similarity должны находиться в диапазоне [0, 1].")
 
-    candidates = sorted({-1.0, 1.0, *all_scores})
-    curve = [evaluate_threshold(genuine, impostor, value) for value in candidates]
-    eligible = [row for row in curve if row.far <= target_far]
-    recommended = min(eligible, key=lambda row: (row.frr, row.threshold)) if eligible else None
-    eer_point = min(curve, key=lambda row: abs(row.far - row.frr))
+    candidates = sorted({-1.0, 1.0, *genuine, *impostor})
+    rows = [evaluate_threshold(genuine, impostor, value) for value in candidates]
+    curve = [
+        {
+            "threshold": row.threshold,
+            "far": row.far,
+            "frr": row.frr,
+            "tar": row.tar,
+            "false_accepts": row.false_accepts,
+            "false_rejects": row.false_rejects,
+        }
+        for row in rows
+    ]
+    eligible = [row for row in rows if row.far <= target_far]
+    recommended = min(eligible, key=lambda row: row.threshold) if eligible else None
+    eer_point = min(rows, key=lambda row: abs(row.far - row.frr))
     far_ci = wilson_interval(recommended.false_accepts, recommended.impostor_count) if recommended else None
     frr_ci = wilson_interval(recommended.false_rejects, recommended.genuine_count) if recommended else None
 
@@ -102,9 +120,14 @@ def calibrate_threshold(
             "frr": eer_point.frr,
             "mean_error": (eer_point.far + eer_point.frr) / 2.0,
         },
-        "curve": [asdict(row) for row in curve],
+        "roc_auc": _roc_auc(curve),
+        "roc_curve": sorted(
+            [{"false_accept_rate": row["far"], "true_accept_rate": row["tar"], "threshold": row["threshold"]} for row in curve],
+            key=lambda point: point["false_accept_rate"],
+        ),
+        "curve": curve,
         "warning": (
-            "Офлайн-оценка на переданных score; не является доказательством "
-            "качества на другой камере/популяции и не меняет production threshold."
+            "Офлайн-оценка только на переданных score. Доверительные интервалы "
+            "не устраняют смещение выборки. Результат не меняет production threshold."
         ),
     }
