@@ -314,7 +314,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   };
 
   const expected = stage === "front" ? Math.abs(yaw) < 12 : Math.abs(yaw) > 18;
-  const canCapture = modelReady && faceFound && expected && (stage === "front" || stage === "profile");
+  const faceWidthRatio = landmarks?.length ? Math.max(...landmarks.map((p) => p.x)) - Math.min(...landmarks.map((p) => p.x)) : 0;
+  const faceHeightRatio = landmarks?.length ? Math.max(...landmarks.map((p) => p.y)) - Math.min(...landmarks.map((p) => p.y)) : 0;
+  const faceScaleReady = faceWidthRatio >= .18 && faceHeightRatio >= .22;
+  const canCapture = modelReady && faceFound && faceScaleReady && expected && (stage === "front" || stage === "profile");
   const outline = landmarks?.length ? FACE_OVAL.map((index) => landmarks[index]).filter((p): p is {x:number;y:number;z:number} => p !== undefined).map((p) => `${p.x*1000},${p.y*1000}`).join(" ") : "";
   const shotsAcceptable = (shots.front?.quality ?? 0) >= 55 && (shots.profile?.quality ?? 0) >= 55;
   const overallLivenessProgress = challenge ? Math.round(((challengeIndex + captureProgress / 100) / challenge.actions.length) * 100) : 0;

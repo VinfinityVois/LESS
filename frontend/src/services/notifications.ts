@@ -4,9 +4,9 @@ export function notify(message: string, kind: NoticeKind = "success") {
   window.dispatchEvent(new CustomEvent("less:notify", { detail: { message, kind } }));
 }
 
-export function downloadCsv(
+export function downloadCsv<T extends object>(
   filename: string,
-  rows: Array<Record<string, unknown>>,
+  rows: T[],
   columns: Array<{ key: string; label: string }>,
 ) {
   try {
@@ -16,7 +16,7 @@ export function downloadCsv(
     };
     const content = [
       columns.map((column) => escape(column.label)).join(";"),
-      ...rows.map((row) => columns.map((column) => escape(row[column.key])).join(";")),
+      ...rows.map((row) => columns.map((column) => escape(row[column.key as keyof T])).join(";")),
     ].join("\r\n");
     const blob = new Blob(["\uFEFF", content], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
