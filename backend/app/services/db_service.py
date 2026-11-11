@@ -329,15 +329,21 @@ class DBService:
                     "UPDATE access_logs SET user_id=NULL,nfc_uid='DELETED' WHERE user_id=?",
                     (user_id,),
                 )
+                conn.execute(
+                    "UPDATE access_log_archive SET user_id=NULL,nfc_uid='DELETED' WHERE user_id=?",
+                    (user_id,),
+                )
                 conn.execute("DELETE FROM biometric_consents WHERE user_id=?", (user_id,))
                 conn.execute("DELETE FROM access_security_state WHERE subject_key=?",
                              (str(exists["nfc_uid"]),))
                 cur = conn.execute("DELETE FROM users WHERE id=?", (user_id,))
             else:
                 now = datetime.now(timezone.utc).isoformat()
+                conn.execute("UPDATE biometric_consents SET revoked_at=? WHERE user_id=? AND revoked_at IS NULL", (now, user_id))
                 cur = conn.execute(
                     """UPDATE users SET is_active=0,deleted_at=?,updated_at=?,
-                       face_embedding=NULL,face_profile_embedding=NULL,
+                       face_embedding=NULL,face_profile_embedding=NULL,face_vector=NULL,
+                       face_profile_vector=NULL,face_observation=NULL,
                        photo_blob=NULL,profile_photo_blob=NULL
                        WHERE id=?""",
                     (now, now, user_id),
