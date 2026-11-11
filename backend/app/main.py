@@ -51,8 +51,9 @@ async def lifespan(app: FastAPI):
         while True:
             try:
                 await asyncio.to_thread(db_service.archive_previous_days)
+                await asyncio.to_thread(db_service.archive_expired_guest_passes)
             except Exception:
-                logger.exception("Не удалось выполнить ежедневную архивацию журнала доступа")
+                logger.exception("Не удалось выполнить ежедневную архивацию журнала или гостевых пропусков")
             await asyncio.sleep(60)
 
     archive_task = asyncio.create_task(archive_completed_days())
