@@ -36,7 +36,7 @@ class LocalAIAssistant:
             if not installed:
                 return {"enabled": True, "available": False, "runtime_available": True, "model": settings.LOCAL_LLM_MODEL, "message": "Локальный runtime запущен, но выбранная модель не установлена."}
             return {"enabled": True, "available": True, "runtime_available": True, "model": settings.LOCAL_LLM_MODEL, "runtime": "Ollama-compatible"}
-        except (httpx.HTTPError, ValueError, TypeError):
+        except (httpx.HTTPError, ValueError, TypeError, AttributeError):
             return {"enabled": True, "available": False, "runtime_available": False, "model": settings.LOCAL_LLM_MODEL, "message": "Локальный LLM runtime не отвечает."}
 
     async def explain_incident(self, incident: dict, question: str = "") -> dict:
