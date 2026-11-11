@@ -118,16 +118,19 @@ class MLAnomalyDetector:
             peers = [_features(other_rows) for j, (_, other_rows) in enumerate(cohorts) if j != index]
             deviations = []
             for feature_index, name in enumerate(FEATURE_NAMES):
-                peer_median = median(row[feature_index] for row in peers)
+                peer_values = [row[feature_index] for row in peers]
+                peer_median = median(peer_values)
+                mad = median([abs(value - peer_median) for value in peer_values])
                 deviation = abs(vector[feature_index] - peer_median)
-                if deviation > 0:
+                robust_deviation = deviation / max(1.4826 * mad, 0.05)
+                if robust_deviation >= 1.0:
                     deviations.append({
                         "feature": name,
                         "observed": round(vector[feature_index], 4),
                         "cohort_median": round(peer_median, 4),
-                        "absolute_deviation": round(deviation, 4),
+                        "robust_deviation": round(robust_deviation, 2),
                     })
-            deviations.sort(key=lambda item: item["absolute_deviation"], reverse=True)
+            deviations.sort(key=lambda item: item["robust_deviation"], reverse=True)
             anomalies.append({
                 "subject_ref": key,
                 "relative_anomaly_score": relative_risk,
