@@ -6,10 +6,12 @@ on:
       - feat/control-room-redesign
       - main
       - feat/admin-users-biometric-workflow
+      - feat/pad-guest-archive-security-testing
   push:
     branches:
       - feat/admin-users-biometric-workflow
       - feat/biometric-ai-analytics
+      - feat/pad-guest-archive-security-testing
 
 jobs:
   frontend:
