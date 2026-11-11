@@ -35,10 +35,10 @@ def evaluate_blink_bursts(ears: list[float]) -> tuple[bool, dict[str, Any]]:
         "ear_min": 0.0, "ear_max": 0.0, "ratio": 1.0, "signal_delta": 0.0,
         "opened_before": False, "reopened_after": False, "burst": 0, "passed": False,
     })
-    score = (
+    score = min(100.0, (
         max(0.0, min(100.0, (0.86 - best["ratio"]) / 0.24 * 70.0))
         + min(30.0, best["signal_delta"] / 0.18 * 30.0)
-    ) if best["reopened_after"] else min(60.0, max(0.0, best["signal_delta"] / 0.18 * 60.0))
+    )) if best["reopened_after"] else min(60.0, max(0.0, best["signal_delta"] / 0.18 * 60.0))
     return bool(successful), {
         **best, "successful_bursts": len(successful),
         "burst_results": burst_results, "blink_score": round(score, 1),
