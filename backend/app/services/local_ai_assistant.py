@@ -19,16 +19,27 @@ class LocalAIAssistant:
             return None
         return settings.LOCAL_LLM_BASE_URL.rstrip("/") + "/api/chat"
 
-    def status(self) -> dict:
+    async def status(self) -> dict:
         endpoint = self._endpoint()
         if not settings.LOCAL_LLM_ENABLED:
             return {"enabled": False, "available": False, "message": "Локальный AI-помощник отключён в конфигурации."}
         if not endpoint:
             return {"enabled": True, "available": False, "message": "Разрешены только HTTP loopback-адреса локального LLM runtime."}
-        return {"enabled": True, "available": True, "model": settings.LOCAL_LLM_MODEL, "runtime": "Ollama-compatible"}
+        try:
+            async with httpx.AsyncClient(timeout=2.0, trust_env=False) as client:
+                response = await client.get(endpoint.rsplit("/api/chat", 1)[0] + "/api/tags")
+                response.raise_for_status()
+                payload = response.json()
+            models = [item.get("name", "") for item in payload.get("models", []) if isinstance(item, dict)]
+            installed = any(name == settings.LOCAL_LLM_MODEL or name.startswith(settings.LOCAL_LLM_MODEL + ":") for name in models)
+            if not installed:
+                return {"enabled": True, "available": False, "runtime_available": True, "model": settings.LOCAL_LLM_MODEL, "message": "Локальный runtime запущен, но выбранная модель не установлена."}
+            return {"enabled": True, "available": True, "runtime_available": True, "model": settings.LOCAL_LLM_MODEL, "runtime": "Ollama-compatible"}
+        except (httpx.HTTPError, ValueError, TypeError):
+            return {"enabled": True, "available": False, "runtime_available": False, "model": settings.LOCAL_LLM_MODEL, "message": "Локальный LLM runtime не отвечает."}
 
     async def explain_incident(self, incident: dict, question: str = "") -> dict:
-        status = self.status()
+        status = await self.status()
         endpoint = self._endpoint()
         if not status["available"] or not endpoint:
             return {"status": "disabled" if not settings.LOCAL_LLM_ENABLED else "unavailable", **status}
