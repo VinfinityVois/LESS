@@ -11,7 +11,7 @@ function fmt(iso?: string | null, timeOnly = false) {
 function statusText(event: string, reason?: string | null) {
   if (event === "granted") return "Разрешён";
   if (event === "simulated") return "Тест";
-  if (reason) return reason.split(":")[0].replaceAll("_", " ");
+  if (reason) return reason.split(":")[0].replace(/_/g, " ");
   return event === "denied" ? "Отказ" : event;
 }
 
@@ -26,7 +26,7 @@ function methodText(method?: string | null) {
     "guest_code": "Гостевой код",
     "test": "Тестовый сценарий",
   };
-  return method ? (labels[method] || method.replaceAll("+", " + ")) : "Способ не указан";
+  return method ? (labels[method] || method.replace(/\+/g, " + ")) : "Способ не указан";
 }
 
 export default function LogsPage() {
