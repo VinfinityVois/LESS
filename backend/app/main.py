@@ -28,6 +28,7 @@ from app.services.ai_analyzer import ai_analyzer
 from app.services.ml_anomaly_detector import ml_anomaly_detector
 from app.services.incident_correlation import incident_correlation_engine
 from app.services.fingerprint_service import fingerprint_service
+from app.services.local_ai_assistant import local_ai_assistant
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
     access_policy,
@@ -171,6 +172,19 @@ async def list_security_incidents(limit: int = Query(100, ge=1, le=500), status:
     return {"incidents": db_service.get_security_incidents(limit=limit, status=status)}
 
 
+@app.get("/api/ai/assistant/status")
+async def local_ai_assistant_status():
+    return local_ai_assistant.status()
+
+
+@app.post("/api/ai/assistant/explain")
+async def explain_security_incident(body: IncidentAssistantRequest):
+    incident = db_service.get_security_incident(body.incident_id)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Инцидент не найден.")
+    return await local_ai_assistant.explain_incident(incident, body.question)
+
+
 @app.post("/api/camera/start")
 async def camera_start():
     stream_service.request_start()
@@ -206,6 +220,11 @@ class AdminBootstrapRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=12, max_length=256)
+
+
+class IncidentAssistantRequest(BaseModel):
+    incident_id: int = Field(gt=0)
+    question: str = Field(default="", max_length=500)
 
 
 class AdminLoginRequest(BaseModel):
