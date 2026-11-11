@@ -597,6 +597,9 @@ class FaceEnrollRequest(BaseModel):
     front_photo: str = Field(min_length=32, max_length=8_000_000)
     profile_photo: str = Field(min_length=32, max_length=8_000_000)
     liveness_proof: str = Field(min_length=20, max_length=128)
+    glasses: str = Field(default="unknown", pattern="^(with|without|unknown)$")
+    mask: str = Field(default="unknown", pattern="^(with|without|unknown)$")
+    face_shape: str = Field(default="unknown", max_length=32)
 
 
 @app.get("/api/users")
@@ -684,7 +687,8 @@ async def enroll_face(user_id: int, body: FaceEnrollRequest, request: Request):
         db_service.save_face_profile(
             user_id=user_id, front_landmarks=body.front_landmarks,
             profile_landmarks=body.profile_landmarks, front_photo=body.front_photo,
-            profile_photo=body.profile_photo,
+            profile_photo=body.profile_photo, glasses=body.glasses, mask=body.mask,
+            face_shape=body.face_shape,
         )
         db_service.save_face_vectors(user_id, front["embedding"], profile["embedding"])
     except RuntimeError as exc:
