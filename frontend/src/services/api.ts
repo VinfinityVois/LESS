@@ -347,6 +347,7 @@ export interface SecurityIncident {
     factors?: { code: string; points: number; count?: number; doors?: string[]; model?: string }[];
     risk_scale?: string;
     ml_model?: string | null;
+    ml_model_version?: string | null;
     subject_label?: string;
   };
   first_seen: string;
