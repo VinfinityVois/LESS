@@ -32,6 +32,7 @@ from app.services.fingerprint_service import fingerprint_service
 from app.services.local_ai_assistant import local_ai_assistant
 from app.services.pad_metrics import evaluate_pad_trials
 from app.services.stream_service import stream_service
+from app.services.request_guard import TokenBucketLimiter
 from app.services.access_policy import (
     access_policy,
     AccessContext,
@@ -101,10 +102,27 @@ class IncidentAssistantRequest(BaseModel):
 
 
 PUBLIC_AUTH_PATHS = {"/api/status", "/api/auth/bootstrap-status", "/api/auth/bootstrap", "/api/auth/login"}
+API_RATE_LIMITER = TokenBucketLimiter(capacity=40, refill_per_second=2.0, max_keys=4096)
+MAX_API_BODY_BYTES = 12 * 1024 * 1024
 
 @app.middleware("http")
 async def protect_control_plane(request: Request, call_next):
     path = request.url.path
+    if path.startswith("/api/") and request.method != "OPTIONS":
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > MAX_API_BODY_BYTES:
+                    return JSONResponse(status_code=413, content={"detail": "Размер запроса превышает лимит 12 МБ."})
+            except ValueError:
+                return JSONResponse(status_code=400, content={"detail": "Некорректный Content-Length."})
+        client_ip = request.client.host if request.client else "unknown"
+        if not API_RATE_LIMITER.allow(client_ip):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Слишком много запросов. Повторите попытку через секунду."},
+                headers={"Retry-After": "1"},
+            )
     if path.startswith("/api/") and path not in PUBLIC_AUTH_PATHS and request.method != "OPTIONS":
         header = request.headers.get("Authorization", "")
         token = header[7:].strip() if header.lower().startswith("bearer ") else ""
