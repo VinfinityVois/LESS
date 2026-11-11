@@ -272,7 +272,7 @@ flowchart TB
 | Encryption | AES-256-GCM, SQLCipher |
 | Audit integrity | HMAC-SHA256, JSONL |
 | Device communication | pySerial, протокол LESS-HW/1 |
-| Tests / CI | unittest, GitHub Actions, TypeScript build, pip-audit, npm audit |
+| AI / Analytics | scikit-learn Isolation Forest, ROC/PAD evaluators, incident correlation, optional local Ollama |\n| Tests / CI | unittest, GitHub Actions, TypeScript build, Bandit, Semgrep, Gitleaks, pip-audit, npm audit |
 
 ## Структура репозитория
 
@@ -294,8 +294,8 @@ LESS/
 │   │       ├── ai_analyzer.py
 │   │       ├── camera_service.py
 │   │       └── stream_service.py
-│   ├── scripts/                    # Загрузка моделей
-│   ├── tests/                      # Тесты шифрования и аудита
+│   ├── scripts/                    # Загрузка моделей и offline evaluators
+│   ├── tests/                      # Unit-тесты безопасности, биометрии и аналитики
 │   ├── models/                     # Локальные модели (не коммитятся)
 │   ├── data/                       # Локальная БД и журналы
 │   ├── CONTROLLER_PROTOCOL.md
