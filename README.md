@@ -479,6 +479,10 @@ GitHub Actions workflow выполняет:
 - [Установка и запуск через VS Code](docs/SETUP_VSCODE.md)
 - [Политики доступа](docs/ACCESS_POLICIES.md)
 - [План и статус Biometric AI & Analytics](docs/BIOMETRIC_AI_ANALYTICS_PLAN.md)
+- [SFace: подготовка выборки и ROC/FAR/FRR](docs/SFACE_EVALUATION.md)
+- [Протокол испытаний liveness / PAD](docs/PAD_TEST_PROTOCOL.md)
+- [Шаблон пар для SFace](docs/templates/sface_pairs_template.csv)
+- [Шаблон испытаний PAD](docs/templates/pad_trials_template.csv)
 - [Backend: шифрование, биометрия и аудит](backend/README.md)
 - [LESS-HW/1: протокол контроллера двери](backend/CONTROLLER_PROTOCOL.md)
 
