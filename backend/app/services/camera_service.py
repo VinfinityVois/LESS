@@ -26,11 +26,21 @@ class CameraService:
             return False
         self.cap = capture
 
+        # Prefer MJPEG on USB cameras: it often sustains 720p/1080p better than
+        # uncompressed YUYV. Unsupported controls are safely ignored by OpenCV.
+        self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
         self.cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
+        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        actual_width = int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
+        actual_height = int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
+        actual_fps = round(self.cap.get(cv2.CAP_PROP_FPS) or 0, 1)
         self.is_running = True
-        logger.info(f"Камера {index} запущена")
+        logger.info(
+            f"Камера {index} запущена: {actual_width}x{actual_height} @ {actual_fps} FPS "
+            f"(запрошено {settings.CAMERA_WIDTH}x{settings.CAMERA_HEIGHT} @ {settings.CAMERA_FPS})"
+        )
         return True
 
     def stop(self):
