@@ -53,12 +53,31 @@ def evaluate_pad_trials(trials: Iterable[dict]) -> dict:
 
     apcer = accepted_attacks / len(attacks)
     bpcer = bona_rejected / len(bona_fide)
+    def grouped_metrics(field: str) -> dict:
+        groups: dict[str, list[dict]] = defaultdict(list)
+        for row in rows:
+            groups[str(row.get(field) or "not_specified")].append(row)
+        result = {}
+        for label, group in sorted(groups.items())[:20]:
+            live = [row for row in group if row.get("class") == "bona_fide"]
+            attack = [row for row in group if row.get("class") == "attack"]
+            result[label] = {
+                "trials": len(group),
+                "bona_fide": len(live),
+                "attacks": len(attack),
+                "apcer": (sum(accepted(row) for row in attack) / len(attack)) if attack else None,
+                "bpcer": (sum(not accepted(row) for row in live) / len(live)) if live else None,
+            }
+        return result
+
     return {
         "counts": {"total": len(rows), "bona_fide": len(bona_fide), "attacks": len(attacks)},
         "apcer": apcer,
         "bpcer": bpcer,
         "acer": (apcer + bpcer) / 2.0,
         "attack_species": attack_breakdown,
+        "by_condition": grouped_metrics("test_condition"),
+        "by_camera": grouped_metrics("camera_label"),
         "warning": (
             "Метрики описывают только переданные испытания. Они не подтверждают "
             "сертификацию PAD и не гарантируют устойчивость к неиспытанным атакам."
