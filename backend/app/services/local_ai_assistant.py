@@ -66,7 +66,7 @@ class LocalAIAssistant:
         user_prompt = (
             "Проанализируй карточку инцидента и дай краткое объяснение: что сработало, "
             "какие проверки оператору выполнить и чего нельзя заключать по этим данным.\n"
-            f"Карточка: {safe_context!r}\n"
+            f"Карточка JSON: {json.dumps(safe_context, ensure_ascii=False)}\n"
             f"Вопрос оператора: {question[:500]!r}"
         )
         try:
