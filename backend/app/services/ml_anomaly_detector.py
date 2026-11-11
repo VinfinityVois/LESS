@@ -110,9 +110,16 @@ class MLAnomalyDetector:
             random_state=42,
             n_jobs=1,
         )
-        model.fit(vectors)
-        labels = model.predict(vectors)
-        raw_scores = model.decision_function(vectors)
+        try:
+            model.fit(vectors)
+            labels = model.predict(vectors)
+            raw_scores = model.decision_function(vectors)
+        except Exception:
+            return {
+                "status": "error",
+                "anomalies": [],
+                "message": "ML-модель не смогла обработать текущую выборку. Доступ и политики не затронуты.",
+            }
         low, high = min(raw_scores), max(raw_scores)
         anomalies = []
 
