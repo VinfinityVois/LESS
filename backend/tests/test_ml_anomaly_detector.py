@@ -15,6 +15,15 @@ class MLAnomalyDetectorTests(unittest.TestCase):
         self.assertEqual(result["anomalies"], [])
 
 
+
+    def test_malformed_subject_identifier_is_skipped_without_crashing(self):
+        result = MLAnomalyDetector(min_subjects=1, min_events=1).analyze([
+            {"id": 1, "user_id": "not-an-integer", "event_type": "denied",
+             "created_at": datetime.now(timezone.utc).isoformat()},
+        ])
+        self.assertEqual(result["status"], "insufficient_data")
+        self.assertEqual(result["subjects_observed"], 0)
+
     def test_model_failure_returns_advisory_error_instead_of_raising(self):
         from datetime import datetime, timezone
         logs = []
