@@ -393,3 +393,8 @@ export async function getPadEvaluationReport() {
   }; counts?: { total: number }; message?: string }>("/api/biometrics/liveness/evaluation-report");
   return data;
 }
+
+export async function getFingerprintReaderStatus() {
+  const { data } = await api.get<{ available: boolean; device_id?: string | null; vendor?: string | null; message: string }>("/api/biometrics/fingerprint/status");
+  return data;
+}
