@@ -103,6 +103,7 @@ class FaceRecognitionService:
                 "image_size": [width, height],
             }
 
+    @staticmethod
     def cosine_similarity(left: list[float], right: list[float]) -> float:
         a = np.asarray(left, dtype=np.float32).reshape(-1)
         b = np.asarray(right, dtype=np.float32).reshape(-1)
