@@ -107,6 +107,51 @@ class LivenessService:
             smile_score = (scores.get("mouthSmileLeft", 0.0) + scores.get("mouthSmileRight", 0.0)) / 2.0
         return {"landmarks": faces[0], "smile": float(smile_score)}
 
+    @staticmethod
+    def evaluate_blink_bursts(ears: list[float]) -> tuple[bool, dict[str, Any]]:
+        """Accept one complete open-close-open blink in any of three 12-frame bursts."""
+        burst_results = []
+        for burst_index in range(3):
+            segment = ears[burst_index * 12:(burst_index + 1) * 12]
+            if len(segment) < 8:
+                continue
+            smooth = [
+                float(np.median(segment[max(0, i - 1):min(len(segment), i + 2)]))
+                for i in range(len(segment))
+            ]
+            segment_peak, segment_trough = max(smooth), min(smooth)
+            trough_index = smooth.index(segment_trough)
+            open_level = max(0.14, segment_peak * 0.86)
+            opened_before = any(value >= open_level for value in smooth[:trough_index])
+            reopened_after = any(value >= open_level for value in smooth[trough_index + 1:])
+            ratio = segment_trough / max(segment_peak, 1e-6)
+            delta = segment_peak - segment_trough
+            burst_passed = (
+                segment_peak > 0.14 and ratio < 0.86 and delta >= 0.07
+                and opened_before and reopened_after
+            )
+            burst_results.append({
+                "burst": burst_index + 1, "passed": bool(burst_passed),
+                "ear_min": round(segment_trough, 4), "ear_max": round(segment_peak, 4),
+                "ratio": round(ratio, 4), "signal_delta": round(delta, 4),
+                "opened_before": bool(opened_before), "reopened_after": bool(reopened_after),
+            })
+        successful = [item for item in burst_results if item["passed"]]
+        best = max(burst_results, key=lambda item: (item["passed"], item["signal_delta"]), default={
+            "ear_min": 0.0, "ear_max": 0.0, "ratio": 1.0, "signal_delta": 0.0,
+            "opened_before": False, "reopened_after": False, "burst": 0, "passed": False,
+        })
+        score = (
+            max(0.0, min(100.0, (0.86 - best["ratio"]) / 0.24 * 70.0))
+            + min(30.0, best["signal_delta"] / 0.18 * 30.0)
+        ) if best["reopened_after"] else min(60.0, max(0.0, best["signal_delta"] / 0.18 * 60.0))
+        return bool(successful), {
+            **best,
+            "successful_bursts": len(successful),
+            "burst_results": burst_results,
+            "blink_score": round(score, 1),
+        }
+
     def verify(self, challenge_id: str, admin_id: int, subject_id: int, evidence: list[dict[str, Any]]) -> dict[str, Any]:
         challenge = self._challenges.get(challenge_id)
         now = datetime.now(timezone.utc)
@@ -143,51 +188,14 @@ class LivenessService:
                     samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p["landmarks"], (33, 160, 158, 133, 153, 144)) + self._ear(p["landmarks"], (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
-                        # The client sends three 12-frame bursts. Score each burst separately
-                        # so one closed-eye final frame cannot hide a complete blink earlier.
-                        burst_results = []
-                        for burst_index in range(3):
-                            segment = ears[burst_index * 12:(burst_index + 1) * 12]
-                            if len(segment) < 8:
-                                continue
-                            smooth = [
-                                float(np.median(segment[max(0, i - 1):min(len(segment), i + 2)]))
-                                for i in range(len(segment))
-                            ]
-                            segment_peak, segment_trough = max(smooth), min(smooth)
-                            trough_index = smooth.index(segment_trough)
-                            open_level = max(0.14, segment_peak * 0.86)
-                            opened_before = any(value >= open_level for value in smooth[:trough_index])
-                            reopened_after = any(value >= open_level for value in smooth[trough_index + 1:])
-                            ratio = segment_trough / max(segment_peak, 1e-6)
-                            delta = segment_peak - segment_trough
-                            burst_passed = (
-                                segment_peak > 0.14 and ratio < 0.86 and delta >= 0.07
-                                and opened_before and reopened_after
-                            )
-                            burst_results.append({
-                                "burst": burst_index + 1,
-                                "passed": bool(burst_passed),
-                                "ear_min": round(segment_trough, 4),
-                                "ear_max": round(segment_peak, 4),
-                                "ratio": round(ratio, 4),
-                                "signal_delta": round(delta, 4),
-                                "opened_before": bool(opened_before),
-                                "reopened_after": bool(reopened_after),
-                            })
-                        successful_bursts = [item for item in burst_results if item["passed"]]
-                        best = max(burst_results, key=lambda item: (item["passed"], item["signal_delta"]), default={
-                            "ear_min": 0.0, "ear_max": 0.0, "ratio": 1.0,
-                            "signal_delta": 0.0, "opened_before": False, "reopened_after": False,
-                            "burst": 0, "passed": False,
-                        })
-                        passed = bool(successful_bursts)
-                        trough = best["ear_min"]
-                        peak = best["ear_max"]
-                        closed_ratio = best["ratio"]
-                        signal_delta = best["signal_delta"]
-                        opened_before = best["opened_before"]
-                        reopened_after = best["reopened_after"]
+                        passed, blink_diagnostics = self.evaluate_blink_bursts(ears)
+                        trough = blink_diagnostics["ear_min"]
+                        peak = blink_diagnostics["ear_max"]
+                        closed_ratio = blink_diagnostics["ratio"]
+                        signal_delta = blink_diagnostics["signal_delta"]
+                        opened_before = blink_diagnostics["opened_before"]
+                        reopened_after = blink_diagnostics["reopened_after"]
+                        burst_results = blink_diagnostics["burst_results"]
                         metric = round(signal_delta, 4)
                     elif action == "turn_head":
 
@@ -218,8 +226,8 @@ class LivenessService:
                                 "opened_before": opened_before,
                                 "reopened_after": reopened_after,
                                 "frame_count": len(ears),
-                                "blink_score": round((max(0.0, min(100.0, (0.86 - closed_ratio) / 0.24 * 70.0)) + min(30.0, signal_delta / 0.18 * 30.0)) if reopened_after else min(60.0, max(0.0, signal_delta / 0.18 * 60.0)), 1),
-                                "successful_bursts": sum(1 for item in burst_results if item["passed"]),
+                                "blink_score": blink_diagnostics["blink_score"],
+                                "successful_bursts": blink_diagnostics["successful_bursts"],
                                 "burst_results": burst_results,
                             } if action == "blink" else {"frame_count": len(samples)}),
                             "results": results,
