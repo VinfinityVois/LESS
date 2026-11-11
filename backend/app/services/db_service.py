@@ -552,8 +552,8 @@ class DBService:
         with self._get_conn() as conn:
             row = conn.execute(
                 """SELECT direction FROM (
-                     SELECT direction,created_at,id FROM access_logs
-                     UNION ALL SELECT direction,created_at,id FROM access_log_archive
+                     SELECT direction,created_at,id,user_id,door_id,event_type FROM access_logs
+                     UNION ALL SELECT direction,created_at,id,user_id,door_id,event_type FROM access_log_archive
                    )
                    WHERE user_id=? AND door_id=? AND event_type='granted'
                      AND direction IN ('in','out')
