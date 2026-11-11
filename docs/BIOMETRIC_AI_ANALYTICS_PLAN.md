@@ -101,3 +101,68 @@ LLM может суммировать подтверждённые резуль�
 - Все результаты анализа имеют происхождение и воспроизводимые тесты.
 - Нет автоматического изменения production-порогов на основании неподтверждённых данных.
 - В README и ВКР чётко разделены реализованные функции, экспериментальные прототипы и планы.
+
+
+## Фактический статус реализации в feat/biometric-ai-analytics
+
+### Реализовано в коде этой ветки
+- SFace evaluator: FAR/FRR/TAR, ROC curve, ROC AUC, приближённый EER, Wilson 95% intervals и offline threshold recommendation.
+- PAD evaluator: APCER/BPCER/ACER и разрез по видам атак.
+- Isolation Forest baseline: агрегированные профили по субъектам, 30-дневное окно по умолчанию, минимум 12 субъектов и 3 события на субъекта; пороги конфигурируются.
+- Incident correlation: правила + ML-сигналы, дедупликация, эвристический risk score, хранение доказательств и статусы обработки.
+- UI центра инцидентов: фильтры, факторы риска, связанные события, обработка/отклонение и вызов локального помощника.
+- DevSecOps CI: Bandit, Semgrep report, Gitleaks, pip-audit и npm audit.
+- Fingerprint adapter contract: интерфейс устройства и fail-closed поведение без подключённого сканера.
+- Local AI Assistant: read-only объяснение карточки инцидента через Ollama-compatible loopback runtime; отключён по умолчанию.
+- Обновлён экран входа LESS: responsive secure gateway, доступность полей и состояния ошибок.
+
+### Что пока НЕ подтверждено испытаниями
+- FAR/FRR/ROC на реальной репрезентативной выборке SFace. Evaluator готов, но размеченный датасет должен быть подготовлен и испытан.
+- APCER/BPCER на реально проведённых атаках. PAD evaluator считает метрики по CSV, но не запускает атаки и не доказывает сертификацию PAD.
+- Полезность Isolation Forest на данных эксплуатации, точность тревог и устойчивость по периодам. Модель экспериментальная, score относительный, не вероятность.
+- Фактическая работа LLM-помощника: нужен установленный Ollama runtime и модель. Пока LOCAL_LLM_ENABLED=false.
+- Физическая регистрация и проверка отпечатка: нужен выбранный совместимый сенсор и vendor SDK. Текущий adapter contract не является работающим фактором доступа.
+- Результаты текущего CI должны проверяться в GitHub Actions для актуального HEAD; наличие workflow само по себе не означает успешную проверку.
+
+### Форматы входных данных evaluator
+
+SFace CSV:
+```csv
+label,similarity
+genuine,0.812
+genuine,0.901
+impostor,0.244
+impostor,0.361
+```
+
+Команда:
+```powershell
+cd backend
+python scripts/evaluate_face_threshold.py .\scores.csv --target-far 0.001 --output .\face-report.json
+```
+
+PAD CSV:
+```csv
+class,accepted,attack_type
+bona_fide,true,
+bona_fide,false,
+attack,false,printed_photo
+attack,true,screen_video
+```
+
+Команда:
+```powershell
+cd backend
+python scripts/evaluate_pad_trials.py .\pad-trials.csv --output .\pad-report.json
+```
+
+Не добавляйте в репозиторий фотографии, видеозаписи, биометрические шаблоны, имена или реальные UID. В отчёты передавайте только размеченные similarity scores и исходы испытаний.
+
+### Локальный AI-помощник
+
+1. Установить Ollama локально и загрузить модель: `ollama pull qwen2.5:3b`.
+2. В backend/.env установить `LOCAL_LLM_ENABLED=true`, `LOCAL_LLM_BASE_URL=http://127.0.0.1:11434`, `LOCAL_LLM_MODEL=qwen2.5:3b`.
+3. Перезапустить backend и проверить `GET /api/ai/assistant/status`.
+4. В центре инцидентов использовать объяснение по конкретной карточке.
+
+Внешние адреса LLM отклоняются. Модель получает только ограниченную структурированную карточку инцидента, не получает биометрические кадры, шаблоны, ключи, raw NFC UID или доступ к инструментам управления.
