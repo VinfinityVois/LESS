@@ -8,6 +8,7 @@ from fastapi import WebSocket
 import asyncio
 from app.services.camera_service import camera_service
 from app.services.face_recognition_service import face_recognition_service
+from app.config import settings
 
 
 class StreamService:
@@ -94,7 +95,7 @@ class StreamService:
                             except Exception as exc:
                                 logger.warning(f"YuNet live detection unavailable: {exc}")
                                 await self.broadcast_json({"type": "face_detection", "available": False, "faces": []})
-                await asyncio.sleep(1 / 15)
+                await asyncio.sleep(1 / max(1, settings.CAMERA_FPS))
         except asyncio.CancelledError:
             pass
         finally:
