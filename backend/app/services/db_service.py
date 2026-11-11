@@ -578,7 +578,7 @@ class DBService:
                      risk_score=MAX(security_incidents.risk_score, excluded.risk_score),
                      evidence_json=excluded.evidence_json,
                      last_seen=excluded.last_seen,
-                     occurrences=security_incidents.occurrences+1,
+                     occurrences=CASE WHEN excluded.last_seen > security_incidents.last_seen THEN security_incidents.occurrences+1 ELSE security_incidents.occurrences END,
                      status=CASE WHEN security_incidents.status='resolved' THEN 'open' ELSE security_incidents.status END,
                      updated_at=excluded.updated_at""",
                 (
