@@ -193,11 +193,30 @@ async def export_logs(day: Optional[str] = Query(None)):
         db_service.archive_previous_days()
         rows = db_service.get_recent_logs(limit=100000)
         filename = "less-events-all.csv"
+    peak_groups = {}
+    for row in rows:
+        try:
+            local_day = datetime.fromisoformat(row.get("created_at") or "").astimezone().date().isoformat()
+        except (TypeError, ValueError):
+            local_day = (row.get("created_at") or "")[:10]
+        key = (local_day, row.get("user_id"), row.get("nfc_uid") or "", row.get("factor_used") or "", row.get("direction") or "")
+        peak_groups.setdefault(key, []).append(row.get("created_at"))
+    peak_times = {}
+    for key, timestamps in peak_groups.items():
+        ordered = sorted(value for value in timestamps if value)
+        peak_times[key] = (ordered[0] if ordered else "", ordered[1] if len(ordered) > 1 else "")
+
     output = io.StringIO()
     writer = csv.writer(output, delimiter=";", lineterminator="\n")
-    writer.writerow(["id","date_time","method","uid","person","status","reason","door","direction"])
+    writer.writerow(["id","date_time","first_peak_at","repeat_peak_at","method","uid","person","status","reason","door","direction"])
     for row in rows:
-        writer.writerow([row.get("id"),row.get("created_at"),row.get("factor_used"),row.get("nfc_uid"),row.get("user_name") or row.get("user_id") or "Не определён",row.get("event_type"),row.get("reason"),row.get("door_id"),row.get("direction")])
+        try:
+            local_day = datetime.fromisoformat(row.get("created_at") or "").astimezone().date().isoformat()
+        except (TypeError, ValueError):
+            local_day = (row.get("created_at") or "")[:10]
+        key = (local_day, row.get("user_id"), row.get("nfc_uid") or "", row.get("factor_used") or "", row.get("direction") or "")
+        first_peak, repeat_peak = peak_times.get(key, ("", ""))
+        writer.writerow([row.get("id"),row.get("created_at"),first_peak,repeat_peak,row.get("factor_used"),row.get("nfc_uid"),row.get("user_name") or row.get("user_id") or "Не определён",row.get("event_type"),row.get("reason"),row.get("door_id"),row.get("direction")])
     return Response(content="\ufeff"+output.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
