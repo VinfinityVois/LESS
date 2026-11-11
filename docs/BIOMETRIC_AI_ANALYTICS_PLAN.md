@@ -126,13 +126,13 @@ LLM может суммировать подтверждённые резуль�
 
 ### Форматы входных данных evaluator
 
-SFace CSV:
+SFace CSV (optional condition/camera columns produce subgroup reports):
 ```csv
-label,similarity
-genuine,0.812
-genuine,0.901
-impostor,0.244
-impostor,0.361
+label,similarity,condition,camera
+genuine,0.812,bright,cam-a
+genuine,0.901,bright,cam-a
+impostor,0.244,bright,cam-a
+impostor,0.361,bright,cam-a
 ```
 
 Команда:
