@@ -163,7 +163,7 @@ async def run_ai_analyze():
 @app.post("/api/ai/anomaly/analyze")
 async def run_ml_anomaly_analysis():
     """Run advisory cohort anomaly analysis; never changes access decisions."""
-    logs = db_service.get_recent_logs(limit=1000)
+    logs = db_service.get_recent_logs(limit=5000)
     return ml_anomaly_detector.analyze(logs)
 
 
