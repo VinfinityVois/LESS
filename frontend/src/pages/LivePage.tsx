@@ -41,6 +41,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [accessBusy, setAccessBusy] = useState(false);
   const [accessResult, setAccessResult] = useState<any>(null);
   const [currentSubject, setCurrentSubject] = useState<any>(null);
+  const [identitySimilarity, setIdentitySimilarity] = useState<number | null>(null);
   const [subjectStage, setSubjectStage] = useState<"idle" | "identified" | "card" | "challenge" | "recognizing" | "granted" | "denied">("idle");
   const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
     const saved = localStorage.getItem("less-external-display-mode");
@@ -67,9 +68,11 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         const result = await recognizeMonitoringFace(frame);
         if (result.status === "identified" && result.subject) {
           setCurrentSubject(result.subject);
+          setIdentitySimilarity(result.similarity ?? null);
           if (subjectStageRef.current === "idle" || subjectStageRef.current === "identified") setSubjectStage("identified");
         } else if (subjectStageRef.current === "identified") {
           setCurrentSubject(null);
+          setIdentitySimilarity(null);
           setSubjectStage("idle");
         }
       } catch { /* recognition must not interrupt the live camera feed */ }
@@ -279,7 +282,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <VideoFeed onFrame={onCameraFrame} hidden={externalDisplayMode === "video"} />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
-          <div className="camera-frame__bottom"><div className="subject-placeholder">{activeSubject?.photo_data_url ? <img className="subject-placeholder__photo" src={activeSubject.photo_data_url} alt="" /> : <div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div>}<div><strong>{activeSubject?.name || (subjectStage === "card" ? "Карта считана" : "Ожидание субъекта")}</strong><span>{activeSubject ? (activeSubject.position || "Сотрудник · карточка активна") : "Ожидание лица перед камерой"}</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
+          <div className="camera-frame__bottom"><div className="subject-placeholder">{activeSubject?.photo_data_url ? <img className="subject-placeholder__photo" src={activeSubject.photo_data_url} alt="" /> : <div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div>}<div><strong>{activeSubject?.name || (subjectStage === "card" ? "Карта считана" : "Ожидание субъекта")}</strong><span>{activeSubject ? (subjectStage === "identified" ? "Распознано по лицу · факторы доступа не проверены" : activeSubject.position || "Сотрудник · карточка активна") : "Ожидание лица перед камерой"}</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
         {faceChallenge && <section className="face-access-challenge">
           <span className="eyebrow">ДВУХФАКТОРНАЯ ПРОВЕРКА · {challengeStep + 1}/{faceChallenge.actions.length}</span>
@@ -318,7 +321,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
         <section className="surface-panel subject-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ТЕКУЩАЯ СЕССИЯ</span><h2>Карточка субъекта</h2></div><UserRoundSearch size={18} className="muted-icon" /></div>
-          {activeSubject ? <div className={"subject-identified " + (faceChallenge || accessBusy ? "is-verifying" : "")}>{activeSubject.photo_data_url && <img src={activeSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{activeSubject.name}</strong><span>{activeSubject.position || "Должность не указана"}</span><small>ID · {activeSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>{subjectStage === "card" ? "Поиск карточки…" : "Субъект не определён"}</strong><span>Распознавание показывает личность; NFC, PIN и отпечаток проверяются отдельно для решения о проходе.</span></div>}
+          {activeSubject ? <div className={"subject-identified " + (faceChallenge || accessBusy ? "is-verifying" : "")}>{activeSubject.photo_data_url && <img src={activeSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{activeSubject.name}</strong><span>{activeSubject.position || "Должность не указана"}</span><small>ID · {activeSubject.id}{identitySimilarity != null ? ` · SFace ${identitySimilarity}%` : ""}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>{subjectStage === "card" ? "Поиск карточки…" : "Субъект не определён"}</strong><span>Распознавание показывает личность; NFC, PIN и отпечаток проверяются отдельно для решения о проходе.</span></div>}
           <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{subjectStageLabel}</b></div>
         </section>
 
