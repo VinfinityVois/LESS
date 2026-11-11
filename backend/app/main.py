@@ -45,11 +45,28 @@ from app.services.access_policy import (
 async def lifespan(app: FastAPI):
     logger.info("LESS Backend starting...")
     logger.info(f"Listening on http://{settings.HOST}:{settings.PORT}")
-    yield
-    logger.info("LESS Backend shutting down...")
-    camera_service.stop()
-    serial_service.disconnect()
-    stream_service.stop_stream()
+
+    async def archive_completed_days():
+        while True:
+            try:
+                await asyncio.to_thread(db_service.archive_previous_days)
+            except Exception:
+                logger.exception("Не удалось выполнить ежедневную архивацию журнала доступа")
+            await asyncio.sleep(60)
+
+    archive_task = asyncio.create_task(archive_completed_days())
+    try:
+        yield
+    finally:
+        archive_task.cancel()
+        try:
+            await archive_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("LESS Backend shutting down...")
+        camera_service.stop()
+        serial_service.disconnect()
+        stream_service.stop_stream()
 
 
 app = FastAPI(
