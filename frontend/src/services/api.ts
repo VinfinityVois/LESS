@@ -235,8 +235,8 @@ export async function deleteUser(id: number, hard = false) {
   return data;
 }
 
-export async function createLivenessChallenge(userId: number, consentConfirmed: boolean) {
-  const { data } = await api.post("/api/biometrics/liveness/challenge", { user_id: userId, consent_confirmed: consentConfirmed });
+export async function createLivenessChallenge(userId: number, consentConfirmed: boolean, purpose: "face_enrollment" | "pad_testing" = "face_enrollment") {
+  const { data } = await api.post("/api/biometrics/liveness/challenge", { user_id: userId, consent_confirmed: consentConfirmed, purpose });
   return data as { challenge_id: string; actions: string[]; instructions: Record<string, string>; expires_at: string };
 }
 export async function verifyLiveness(body: { user_id: number; challenge_id: string; evidence: { action: string; frames: string[] }[] }) {
@@ -375,5 +375,19 @@ export async function explainSecurityIncident(incidentId: number, question = "")
 
 export async function updateSecurityIncidentStatus(incidentId: number, status: "open" | "resolved" | "dismissed") {
   const { data } = await api.patch<SecurityIncident>(`/api/ai/incidents/${incidentId}`, { status });
+  return data;
+}
+
+export async function recordPadTrial(body: { trial_class: "bona_fide" | "attack"; attack_type?: string; accepted: boolean; failure_reason?: string }) {
+  const { data } = await api.post<{ id: number; recorded: boolean }>("/api/biometrics/liveness/evaluation-trials", body);
+  return data;
+}
+export async function getPadEvaluationReport() {
+  const { data } = await api.get<{ status: string; report?: {
+    counts: { total: number; bona_fide: number; attacks: number };
+    apcer: number; bpcer: number; acer: number;
+    attack_species: Record<string, { presentations: number; false_accepts: number; apcer: number }>;
+    warning: string;
+  }; counts?: { total: number }; message?: string }>("/api/biometrics/liveness/evaluation-report");
   return data;
 }
