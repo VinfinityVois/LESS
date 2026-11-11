@@ -59,6 +59,18 @@ class DBService:
                     created_at TEXT NOT NULL,
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 );
+                CREATE TABLE IF NOT EXISTS access_log_archive (
+                    id INTEGER PRIMARY KEY,
+                    nfc_uid TEXT,
+                    user_id INTEGER,
+                    event_type TEXT NOT NULL,
+                    factor_used TEXT,
+                    reason TEXT,
+                    direction TEXT,
+                    door_id TEXT,
+                    created_at TEXT NOT NULL,
+                    archived_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS ai_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     alert_type TEXT NOT NULL,
@@ -569,10 +581,77 @@ class DBService:
             )
             return int(cur.lastrowid)
 
-    def get_recent_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+    def archive_previous_days(self) -> int:
+        """Move completed UTC days to an archive table without discarding history."""
+        today = datetime.now(timezone.utc).date().isoformat()
+        now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
-            rows = conn.execute("SELECT * FROM access_logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+            conn.execute(
+                """INSERT OR IGNORE INTO access_log_archive
+                   (id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at,archived_at)
+                   SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at,?
+                   FROM access_logs WHERE substr(created_at,1,10) < ?""",
+                (now, today),
+            )
+            archived = conn.execute("SELECT COUNT(*) AS n FROM access_logs WHERE substr(created_at,1,10) < ?", (today,)).fetchone()["n"]
+            conn.execute("DELETE FROM access_logs WHERE substr(created_at,1,10) < ?", (today,))
+            return int(archived)
+
+    def get_recent_logs(self, limit: int = 50) -> List[Dict[str, Any]]:
+        self.archive_previous_days()
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """SELECT * FROM (
+                     SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs
+                     UNION ALL
+                     SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_log_archive
+                   ) ORDER BY created_at DESC,id DESC LIMIT ?""", (limit,)
+            ).fetchall()
             return [dict(row) for row in rows]
+
+    def get_log_days(self) -> List[Dict[str, Any]]:
+        self.archive_previous_days()
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """SELECT substr(created_at,1,10) AS day, COUNT(*) AS events,
+                          SUM(CASE WHEN event_type='granted' THEN 1 ELSE 0 END) AS granted,
+                          SUM(CASE WHEN event_type NOT IN ('granted','simulated') THEN 1 ELSE 0 END) AS denied
+                   FROM (
+                     SELECT created_at,event_type FROM access_logs
+                     UNION ALL SELECT created_at,event_type FROM access_log_archive
+                   ) GROUP BY substr(created_at,1,10) ORDER BY day DESC"""
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_logs_for_date(self, day: str) -> List[Dict[str, Any]]:
+        self.archive_previous_days()
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """SELECT l.*,u.name AS user_name FROM (
+                     SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs
+                     UNION ALL SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_log_archive
+                   ) l LEFT JOIN users u ON u.id=l.user_id
+                   WHERE substr(l.created_at,1,10)=? ORDER BY l.created_at DESC,l.id DESC""", (day,)
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_daily_log_peaks(self, day: str) -> List[Dict[str, Any]]:
+        logs = self.get_logs_for_date(day)
+        groups: Dict[tuple, List[Dict[str, Any]]] = {}
+        for item in logs:
+            key = (item.get("user_id"), item.get("nfc_uid") or "", item.get("factor_used") or "", item.get("direction") or "")
+            groups.setdefault(key, []).append(item)
+        result = []
+        for items in groups.values():
+            chronological = sorted(items, key=lambda item: item.get("created_at") or "")
+            latest = items[0]
+            result.append({
+                **latest,
+                "first_peak_at": chronological[0].get("created_at"),
+                "repeat_peak_at": chronological[1].get("created_at") if len(chronological) > 1 else None,
+                "attempts": len(chronological),
+            })
+        return sorted(result, key=lambda item: item.get("created_at") or "", reverse=True)
 
 
 
