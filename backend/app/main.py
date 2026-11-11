@@ -172,7 +172,7 @@ async def run_ml_anomaly_analysis(request: Request):
 @app.post("/api/ai/incidents/analyze")
 async def analyze_security_incidents(request: Request):
     """Correlate rule and ML signals into advisory, auditable incidents."""
-    logs = db_service.get_recent_logs(limit=1000)
+    logs = db_service.get_recent_logs(limit=5000)
     ml_result = ml_anomaly_detector.analyze(logs)
     candidates = incident_correlation_engine.build_incidents(logs, ml_result)
     persisted = [db_service.upsert_security_incident(item) for item in candidates]
