@@ -635,3 +635,45 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .incident-subject-label{display:inline-flex;margin-top:5px;padding:3px 6px;color:#9bc9c5;background:rgba(97,216,208,.07);border:1px solid rgba(97,216,208,.12);border-radius:4px;font:8px var(--mono);letter-spacing:.03em}
 
 @media(max-height:760px) and (min-width:841px){.auth-showcase{padding-top:23px;padding-bottom:17px}.auth-visual{width:min(38vw,430px);height:min(38vw,430px);top:44%}.auth-showcase__copy{padding-top:245px;margin-bottom:17px}.auth-showcase__copy h1{font-size:clamp(32px,3.5vw,48px)}.auth-showcase__footer{padding-top:13px}.auth-card{padding:18px 0}.auth-card__icon{margin-bottom:17px}.auth-card__intro{margin-bottom:20px}}
+
+
+/* LESS authentication gateway — refined glass / instrument-panel treatment */
+.auth-screen{grid-template-columns:minmax(0,1.04fr) minmax(460px,.96fr);background:#070d12}
+.auth-atmosphere{background:radial-gradient(ellipse at 18% 52%,rgba(47,151,151,.15),transparent 43%),radial-gradient(ellipse at 78% 82%,rgba(48,111,125,.12),transparent 38%),radial-gradient(ellipse at 86% 12%,rgba(97,216,208,.07),transparent 30%),linear-gradient(122deg,#071016 0%,#0a141b 52%,#0b151d 100%)}
+.auth-showcase{border-right-color:rgba(132,177,185,.16);background:linear-gradient(115deg,rgba(5,13,18,.16),rgba(8,17,23,.04))}
+.auth-showcase:after{opacity:.14;background-size:44px 44px;mask-image:radial-gradient(ellipse at 50% 45%,black,transparent 78%)}
+.auth-brand__mark{width:46px;height:46px;border-radius:14px;box-shadow:inset 0 0 22px rgba(97,216,208,.08),0 0 34px rgba(97,216,208,.09)}
+.auth-visual{width:min(46vw,590px);height:min(46vw,590px);top:46%;filter:drop-shadow(0 20px 70px rgba(0,0,0,.28))}
+.auth-visual:before{inset:5%;border-color:rgba(97,216,208,.13);border-width:1px}
+.auth-visual:after{inset:18%;border-color:rgba(97,216,208,.16);box-shadow:0 0 90px rgba(97,216,208,.035)}
+.auth-visual__halo--outer{border-color:rgba(97,216,208,.2);border-left-color:rgba(97,216,208,.62);border-bottom-color:transparent}
+.auth-visual__halo--middle{border-color:rgba(97,216,208,.18);border-right-color:rgba(97,216,208,.62);border-top-color:transparent}
+.auth-visual__core{width:136px;height:136px;border-color:rgba(117,231,220,.42);background:radial-gradient(circle at 50% 42%,rgba(97,216,208,.22),rgba(7,17,23,.94) 70%);box-shadow:0 0 90px rgba(97,216,208,.16),inset 0 0 38px rgba(97,216,208,.12)}
+.auth-showcase__copy{padding-top:clamp(270px,34vh,390px);margin-bottom:34px}
+.auth-showcase__copy h1{font-size:clamp(36px,4vw,60px);text-shadow:0 8px 36px rgba(0,0,0,.25)}
+.auth-showcase__copy p{max-width:470px;color:#91a5aa}
+.auth-showcase__footer{gap:17px;padding-top:22px;border-top-color:rgba(132,177,185,.17)}
+.auth-footer-stat strong{font-size:10px}.auth-footer-stat small{font-size:9px;color:#748991}
+.auth-panel{isolation:isolate;overflow:hidden;padding:30px clamp(30px,5vw,76px) 24px;background:linear-gradient(145deg,rgba(13,24,32,.94),rgba(7,14,20,.98))}
+.auth-panel:before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 50% 48%,rgba(53,134,137,.12),transparent 56%),linear-gradient(90deg,rgba(97,216,208,.035),transparent 28%);opacity:.9}
+.auth-panel__topline{padding-bottom:13px;border-bottom:1px solid rgba(157,183,194,.09);font-size:8px}
+.auth-card{position:relative;max-width:450px;margin:auto;padding:34px 34px 30px;border:1px solid rgba(151,190,194,.16);border-radius:17px;background:linear-gradient(145deg,rgba(20,34,43,.82),rgba(11,20,27,.9));box-shadow:0 28px 90px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.035);backdrop-filter:blur(18px)}
+.auth-card:before{content:"";position:absolute;left:34px;right:34px;top:0;height:1px;background:linear-gradient(90deg,transparent,rgba(112,220,212,.55),transparent)}
+.auth-card__icon{width:48px;height:48px;margin-bottom:23px;border-radius:14px;background:linear-gradient(145deg,rgba(97,216,208,.13),rgba(97,216,208,.035));box-shadow:0 8px 24px rgba(0,0,0,.16)}
+.auth-card h2{font-size:31px;letter-spacing:-.05em}
+.auth-card__intro{margin-bottom:25px;color:#91a3a8;font-size:12px}
+.auth-form>label,.auth-label-row label{color:#b8c7c8;font-size:9px}
+.auth-input-wrap{margin-bottom:17px}
+.auth-input-wrap input{height:51px;padding-left:15px;border-radius:9px;border-color:rgba(157,183,194,.2);background:rgba(4,11,16,.52);font-size:12px}
+.auth-input-wrap input:focus{border-color:rgba(104,224,215,.72);box-shadow:0 0 0 3px rgba(97,216,208,.09),0 8px 24px rgba(0,0,0,.12)}
+.auth-submit{height:52px;margin-top:5px;padding-left:18px;padding-right:17px;border-radius:9px;background:linear-gradient(105deg,#8be8df 0%,#62d0c8 55%,#4cb7b2 100%);box-shadow:0 12px 30px rgba(52,177,170,.16),inset 0 1px 0 rgba(255,255,255,.35);font-size:11px;letter-spacing:.01em}
+.auth-submit:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 16px 34px rgba(52,177,170,.23),inset 0 1px 0 rgba(255,255,255,.4)}
+.auth-card__security{margin-top:21px;padding-top:15px;border-top-color:rgba(157,183,194,.12);font-size:9px}
+.auth-error{border-radius:9px}
+.auth-remember{padding:3px 0}
+.auth-panel__bottom{padding-top:13px;border-top:1px solid rgba(157,183,194,.08)}
+.auth-input-wrap input:focus-visible,.auth-password-toggle:focus-visible,.auth-submit:focus-visible{outline:2px solid rgba(113,225,216,.8);outline-offset:3px}
+@media(max-width:1000px){.auth-screen{grid-template-columns:minmax(0,.94fr) minmax(430px,1.06fr)}.auth-card{padding:30px 27px}.auth-showcase__copy{padding-top:320px}}
+@media(max-width:840px){.auth-screen{background:#080f15}.auth-panel{padding:22px 20px 17px;background:radial-gradient(ellipse at 50% 35%,rgba(48,132,135,.14),transparent 55%),#080f15}.auth-card{max-width:460px;padding:30px 25px;border-radius:15px}.auth-panel__topline{padding-bottom:11px}.auth-panel__bottom{padding-top:11px}}
+@media(max-width:480px){.auth-card{padding:26px 20px}.auth-card h2{font-size:26px}.auth-card__icon{margin-bottom:19px}.auth-card__intro{margin-bottom:21px}.auth-panel__topline{font-size:7px}.auth-panel__bottom{font-size:6px}}
+@media(prefers-reduced-motion:reduce){.auth-visual__halo,.auth-visual:before,.auth-visual__core{animation:none}}
