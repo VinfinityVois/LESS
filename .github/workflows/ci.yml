@@ -5,9 +5,11 @@ on:
     branches:
       - feat/control-room-redesign
       - main
+      - feat/admin-users-biometric-workflow
   push:
     branches:
       - feat/admin-users-biometric-workflow
+      - feat/biometric-ai-analytics
 
 jobs:
   frontend:
