@@ -90,6 +90,21 @@ class DBService:
                     revoked_at TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 );
+                CREATE TABLE IF NOT EXISTS security_incidents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    dedupe_key TEXT NOT NULL UNIQUE,
+                    subject_ref TEXT,
+                    title TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    risk_score INTEGER NOT NULL,
+                    evidence_json TEXT NOT NULL,
+                    first_seen TEXT NOT NULL,
+                    last_seen TEXT NOT NULL,
+                    occurrences INTEGER NOT NULL DEFAULT 1,
+                    status TEXT NOT NULL DEFAULT 'open',
+                    updated_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS access_security_state (
                     subject_key TEXT PRIMARY KEY,
                     failures INTEGER NOT NULL DEFAULT 0,
@@ -545,6 +560,60 @@ class DBService:
         with self._get_conn() as conn:
             rows = conn.execute("SELECT * FROM access_logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
             return [dict(row) for row in rows]
+
+
+    def upsert_security_incident(self, incident: Dict[str, Any]) -> Dict[str, Any]:
+        now = datetime.now(timezone.utc).isoformat()
+        evidence_json = json.dumps(incident.get("evidence", {}), ensure_ascii=False, sort_keys=True)
+        with self._get_conn() as conn:
+            conn.execute(
+                """INSERT INTO security_incidents
+                   (dedupe_key,subject_ref,title,summary,severity,risk_score,evidence_json,
+                    first_seen,last_seen,occurrences,status,updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,1,'open',?)
+                   ON CONFLICT(dedupe_key) DO UPDATE SET
+                     title=excluded.title,
+                     summary=excluded.summary,
+                     severity=excluded.severity,
+                     risk_score=MAX(security_incidents.risk_score, excluded.risk_score),
+                     evidence_json=excluded.evidence_json,
+                     last_seen=excluded.last_seen,
+                     occurrences=security_incidents.occurrences+1,
+                     status=CASE WHEN security_incidents.status='resolved' THEN 'open' ELSE security_incidents.status END,
+                     updated_at=excluded.updated_at""",
+                (
+                    incident["dedupe_key"], incident.get("subject_ref"), incident["title"],
+                    incident["summary"], incident["severity"], int(incident["risk_score"]),
+                    evidence_json, incident["first_seen"], incident["last_seen"], now,
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM security_incidents WHERE dedupe_key=?",
+                (incident["dedupe_key"],),
+            ).fetchone()
+            return dict(row) if row else {}
+
+    def get_security_incidents(self, limit: int = 100, status: str | None = None) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM security_incidents WHERE status=? ORDER BY risk_score DESC,last_seen DESC LIMIT ?",
+                    (status, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM security_incidents ORDER BY risk_score DESC,last_seen DESC LIMIT ?",
+                    (limit,),
+                ).fetchall()
+            result = []
+            for row in rows:
+                item = dict(row)
+                try:
+                    item["evidence"] = json.loads(item.pop("evidence_json"))
+                except (TypeError, ValueError):
+                    item["evidence"] = {}
+                result.append(item)
+            return result
 
     def add_ai_alert(self, alert_type: str, message: str, severity: str = "medium", related_log_ids: str = None) -> int:
         now = datetime.now(timezone.utc).isoformat()
