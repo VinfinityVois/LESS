@@ -325,7 +325,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       const diagnostic = typeof detail === "string"
         ? detail
         : detail?.failed_action
-          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}; оценка: ${detail.diagnostics.blink_score ?? "—"}%; успешных серий: ${detail.diagnostics.successful_bursts ?? 0}/3.` : ""} Повторите действие: моргните один раз в любой из трёх серий и после этого держите глаза открытыми около секунды.
+          ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}; оценка: ${detail.diagnostics.blink_score ?? "—"}%; успешных серий: ${detail.diagnostics.successful_bursts ?? 0}/3.` : ""} Повторите действие: моргните один раз в любой из трёх серий и после этого держите глаза открытыми около секунды.`
           : detail?.message || e?.message;
       setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
       setErrorContext("liveness");
