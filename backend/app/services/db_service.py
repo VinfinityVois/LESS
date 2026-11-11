@@ -694,7 +694,7 @@ class DBService:
         result = []
         for items in groups.values():
             chronological = sorted(items, key=lambda item: item.get("created_at") or "")
-            latest = items[0]
+            latest = chronological[-1]
             result.append({
                 **latest,
                 "first_peak_at": chronological[0].get("created_at"),
