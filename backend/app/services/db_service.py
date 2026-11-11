@@ -93,6 +93,21 @@ class DBService:
                     created_at TEXT NOT NULL,
                     updated_at TEXT
                 );
+                CREATE TABLE IF NOT EXISTS guest_pass_archive (
+                    id INTEGER PRIMARY KEY,
+                    code_hash TEXT NOT NULL,
+                    code_prefix TEXT NOT NULL,
+                    label TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    max_uses INTEGER NOT NULL DEFAULT 1,
+                    uses INTEGER NOT NULL DEFAULT 0,
+                    door_ids TEXT NOT NULL DEFAULT '["main"]',
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT,
+                    archived_at TEXT NOT NULL,
+                    archive_reason TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS biometric_consents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id INTEGER NOT NULL,
@@ -367,18 +382,91 @@ class DBService:
             pass_id = int(cur.lastrowid)
         return {"id": pass_id, "code": code, "label": label, "expires_at": expires.isoformat(), "max_uses": max_uses, "uses": 0, "door_ids": door_ids or ["main"], "status": "active", "created_at": now.isoformat()}
 
+    def archive_expired_guest_passes(self) -> int:
+        """Archive expired or fully used guest passes, preserving an audit copy."""
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        with self._get_conn() as conn:
+            conn.execute(
+                """INSERT OR IGNORE INTO guest_pass_archive
+                   (id,code_hash,code_prefix,label,expires_at,max_uses,uses,door_ids,status,
+                    created_at,updated_at,archived_at,archive_reason)
+                   SELECT id,code_hash,code_prefix,label,expires_at,max_uses,uses,door_ids,status,
+                          created_at,updated_at,?,CASE
+                            WHEN uses >= max_uses THEN 'uses_exhausted'
+                            ELSE 'expired'
+                          END
+                   FROM guest_passes
+                   WHERE expires_at <= ? OR uses >= max_uses""",
+                (now_iso, now_iso),
+            )
+            archived = conn.execute(
+                "SELECT COUNT(*) AS n FROM guest_passes WHERE expires_at <= ? OR uses >= max_uses",
+                (now_iso,),
+            ).fetchone()["n"]
+            conn.execute(
+                "DELETE FROM guest_passes WHERE expires_at <= ? OR uses >= max_uses",
+                (now_iso,),
+            )
+            return int(archived)
+
     def list_guest_passes(self) -> List[Dict[str, Any]]:
-        now = datetime.now(timezone.utc).isoformat()
+        self.archive_expired_guest_passes()
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
         with self._get_conn() as conn:
             rows = conn.execute("SELECT * FROM guest_passes ORDER BY id DESC").fetchall()
         out = []
         for row in rows:
             item = dict(row)
             item["door_ids"] = json.loads(item["door_ids"] or '["main"]')
-            item["active"] = item["status"] == "active" and item["expires_at"] > now and item["uses"] < item["max_uses"]
+            expires = datetime.fromisoformat(item["expires_at"])
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=timezone.utc)
+            remaining = max(0, int((expires - now).total_seconds()))
+            item["remaining_seconds"] = remaining
+            item["remaining_human"] = self._format_guest_remaining(remaining)
+            item["active"] = item["status"] == "active" and remaining > 0 and item["uses"] < item["max_uses"]
             item.pop("code_hash", None)
             out.append(item)
         return out
+
+    @staticmethod
+    def _format_guest_remaining(seconds: int) -> str:
+        if seconds <= 0:
+            return "Срок истёк"
+        days, remainder = divmod(seconds, 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, _ = divmod(remainder, 60)
+        if days:
+            return f"{days} дн. {hours} ч. {minutes} мин."
+        if hours:
+            return f"{hours} ч. {minutes} мин."
+        return f"{minutes} мин."
+
+    def list_guest_pass_archive(self) -> List[Dict[str, Any]]:
+        self.archive_expired_guest_passes()
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM guest_pass_archive ORDER BY archived_at DESC,id DESC"
+            ).fetchall()
+        out = []
+        for row in rows:
+            item = dict(row)
+            item["door_ids"] = json.loads(item["door_ids"] or '["main"]')
+            item.pop("code_hash", None)
+            out.append(item)
+        return out
+
+    def get_guest_pass_archive_days(self) -> List[Dict[str, Any]]:
+        self.archive_expired_guest_passes()
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                """SELECT date(archived_at,'localtime') AS day,COUNT(*) AS passes
+                   FROM guest_pass_archive
+                   GROUP BY date(archived_at,'localtime') ORDER BY day DESC"""
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_guest_pass_by_code(self, code: str) -> Optional[Dict[str, Any]]:
         with self._get_conn() as conn:
