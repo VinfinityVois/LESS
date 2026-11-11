@@ -6,6 +6,7 @@ raw NFC identifiers, database queries or operational tools are sent to the model
 from __future__ import annotations
 
 from urllib.parse import urlparse
+import json
 
 import httpx
 
