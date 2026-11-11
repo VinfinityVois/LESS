@@ -36,6 +36,30 @@ class IncidentCorrelationTests(unittest.TestCase):
         self.assertIn("ml_anomaly", str(result[0]["evidence"]["factors"]))
         self.assertNotIn("RAW-UID-001", str(result))
 
+
+    def test_rapid_multi_door_sequence_is_correlated(self):
+        now = datetime.now(timezone.utc)
+        logs = [
+            {
+                "id": 21,
+                "user_id": 77,
+                "event_type": "granted",
+                "door_id": "north",
+                "created_at": (now - timedelta(minutes=2)).isoformat(),
+            },
+            {
+                "id": 22,
+                "user_id": 77,
+                "event_type": "granted",
+                "door_id": "south",
+                "created_at": (now - timedelta(minutes=1)).isoformat(),
+            },
+        ]
+        result = IncidentCorrelationEngine().build_incidents(logs)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0]["risk_score"], 20)
+        self.assertIn("rapid_multi_door", str(result[0]["evidence"]["factors"]))
+
     def test_controller_alarm_has_high_priority_and_deduplication_key(self):
         now = datetime.now(timezone.utc).isoformat()
         result = IncidentCorrelationEngine().build_incidents([{
