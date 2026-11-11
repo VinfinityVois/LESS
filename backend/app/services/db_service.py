@@ -613,7 +613,7 @@ class DBService:
                      title=excluded.title,
                      summary=excluded.summary,
                      severity=excluded.severity,
-                     risk_score=MAX(security_incidents.risk_score, excluded.risk_score),
+                     risk_score=excluded.risk_score,
                      evidence_json=excluded.evidence_json,
                      last_seen=excluded.last_seen,
                      occurrences=CASE WHEN excluded.last_seen > security_incidents.last_seen THEN security_incidents.occurrences+1 ELSE security_incidents.occurrences END,
