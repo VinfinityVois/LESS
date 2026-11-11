@@ -57,9 +57,11 @@ def generate_scores(manifest: Path, dataset_root: Path):
             left_path = _safe_image_path(root, row.get("image_a") or "", line_number)
             right_path = _safe_image_path(root, row.get("image_b") or "", line_number)
             try:
-                left = cache.setdefault(left_path, _embedding(left_path))
-                right = cache.setdefault(right_path, _embedding(right_path))
-                score = face_recognition_service.cosine_similarity(left, right)
+                if left_path not in cache:
+                    cache[left_path] = _embedding(left_path)
+                if right_path not in cache:
+                    cache[right_path] = _embedding(right_path)
+                score = face_recognition_service.cosine_similarity(cache[left_path], cache[right_path])
             except (RuntimeError, ValueError) as exc:
                 raise ValueError(f"Строка {line_number}: не удалось получить embedding ({type(exc).__name__}).") from exc
             yield {
