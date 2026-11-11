@@ -593,6 +593,22 @@ class DBService:
             ).fetchone()
             return dict(row) if row else {}
 
+
+    def get_security_incident(self, incident_id: int) -> Dict[str, Any] | None:
+        with self._get_conn() as conn:
+            row = conn.execute(
+                "SELECT * FROM security_incidents WHERE id=?",
+                (incident_id,),
+            ).fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            try:
+                item["evidence"] = json.loads(item.pop("evidence_json"))
+            except (TypeError, ValueError):
+                item["evidence"] = {}
+            return item
+
     def get_security_incidents(self, limit: int = 100, status: str | None = None) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             if status:
