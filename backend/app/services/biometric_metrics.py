@@ -31,9 +31,9 @@ def evaluate_threshold(
     if not genuine or not impostor:
         raise ValueError("Нужны непустые genuine и impostor выборки.")
     if not -1.0 <= threshold <= 1.0:
-        raise ValueError("Порог должен находиться в диапазоне [0, 1].")
+        raise ValueError("Порог должен находиться в диапазоне [-1, 1].")
     if any(not -1.0 <= score <= 1.0 for score in genuine + impostor):
-        raise ValueError("Все cosine similarity должны находиться в диапазоне [0, 1].")
+        raise ValueError("Все cosine similarity должны находиться в диапазоне [-1, 1].")
 
     false_accepts = sum(score >= threshold for score in impostor)
     false_rejects = sum(score < threshold for score in genuine)
@@ -68,7 +68,7 @@ def calibrate_threshold(
     impostor_scores: Iterable[float],
     target_far: float,
 ) -> dict:
-    """Choose the lowest threshold that satisfies target FAR, then report EER.
+    """Choose a low-FRR threshold satisfying target FAR, then report EER.
 
     This is an offline recommendation only. It never changes production settings.
     """
@@ -85,7 +85,7 @@ def calibrate_threshold(
     candidates = sorted({-1.0, 1.0, *all_scores})
     curve = [evaluate_threshold(genuine, impostor, value) for value in candidates]
     eligible = [row for row in curve if row.far <= target_far]
-    recommended = min(eligible, key=lambda row: (row.frr, -row.threshold)) if eligible else None
+    recommended = min(eligible, key=lambda row: (row.frr, row.threshold)) if eligible else None
     eer_point = min(curve, key=lambda row: abs(row.far - row.frr))
     far_ci = wilson_interval(recommended.false_accepts, recommended.impostor_count) if recommended else None
     frr_ci = wilson_interval(recommended.false_rejects, recommended.genuine_count) if recommended else None
