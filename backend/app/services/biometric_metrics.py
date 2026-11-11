@@ -6,6 +6,7 @@ be stored in this report or committed to the repository.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from math import nextafter
 from typing import Iterable
 
 
@@ -102,6 +103,12 @@ def calibrate_threshold(
         }
         for row in rows
     ]
+    # Add the mathematical ROC origin. A threshold strictly above 1.0 is
+    # needed to reject even samples whose cosine similarity is exactly 1.0.
+    roc_curve_rows = [
+        {"far": 0.0, "tar": 0.0, "threshold": nextafter(1.0, float("inf"))},
+        *curve,
+    ]
     eligible = [row for row in rows if row.far <= target_far]
     recommended = min(eligible, key=lambda row: row.threshold) if eligible else None
     eer_point = min(rows, key=lambda row: abs(row.far - row.frr))
@@ -120,10 +127,10 @@ def calibrate_threshold(
             "frr": eer_point.frr,
             "mean_error": (eer_point.far + eer_point.frr) / 2.0,
         },
-        "roc_auc": _roc_auc(curve),
+        "roc_auc": _roc_auc(roc_curve_rows),
         "roc_curve": sorted(
-            [{"false_accept_rate": row["far"], "true_accept_rate": row["tar"], "threshold": row["threshold"]} for row in curve],
-            key=lambda point: point["false_accept_rate"],
+            [{"false_accept_rate": row["far"], "true_accept_rate": row["tar"], "threshold": row["threshold"]} for row in roc_curve_rows],
+            key=lambda point: (point["false_accept_rate"], point["true_accept_rate"]),
         ),
         "curve": curve,
         "warning": (
