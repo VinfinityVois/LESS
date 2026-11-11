@@ -337,10 +337,18 @@ export async function createGuestCode(body: {
 export interface GuestPass {
   id: number; code_prefix: string; label: string; expires_at: string; max_uses: number;
   uses: number; door_ids: string[]; status: "active" | "closed" | "blocked"; active: boolean; created_at: string;
+  remaining_seconds: number; remaining_human: string;
+}
+export interface ArchivedGuestPass extends Omit<GuestPass, "active" | "remaining_seconds" | "remaining_human"> {
+  archived_at: string; archive_reason: "expired" | "uses_exhausted" | "manually_deleted" | string;
 }
 export async function listGuestPasses() {
   const { data } = await api.get<{ codes: GuestPass[] }>("/api/access/guest-codes");
   return data.codes;
+}
+export async function listGuestPassArchive() {
+  const { data } = await api.get<{ codes: ArchivedGuestPass[]; days: { day: string; passes: number }[] }>("/api/access/guest-codes/archive");
+  return data;
 }
 export async function updateGuestPass(id: number, action: "close" | "block" | "restore" | "reset" | "extend", hours = 2) {
   const { data } = await api.patch("/api/access/guest-codes/" + id, { action, hours });
