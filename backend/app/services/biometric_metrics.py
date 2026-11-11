@@ -30,9 +30,9 @@ def evaluate_threshold(
     impostor = [float(score) for score in impostor_scores]
     if not genuine or not impostor:
         raise ValueError("Нужны непустые genuine и impostor выборки.")
-    if not 0.0 <= threshold <= 1.0:
+    if not -1.0 <= threshold <= 1.0:
         raise ValueError("Порог должен находиться в диапазоне [0, 1].")
-    if any(not 0.0 <= score <= 1.0 for score in genuine + impostor):
+    if any(not -1.0 <= score <= 1.0 for score in genuine + impostor):
         raise ValueError("Все cosine similarity должны находиться в диапазоне [0, 1].")
 
     false_accepts = sum(score >= threshold for score in impostor)
@@ -79,10 +79,10 @@ def calibrate_threshold(
     if not 0.0 <= target_far <= 1.0:
         raise ValueError("target_far должен находиться в диапазоне [0, 1].")
     all_scores = genuine + impostor
-    if any(not 0.0 <= score <= 1.0 for score in all_scores):
+    if any(not -1.0 <= score <= 1.0 for score in all_scores):
         raise ValueError("Все cosine similarity должны находиться в диапазоне [0, 1].")
 
-    candidates = sorted({0.0, 1.0, *all_scores})
+    candidates = sorted({-1.0, 1.0, *all_scores})
     curve = [evaluate_threshold(genuine, impostor, value) for value in candidates]
     eligible = [row for row in curve if row.far <= target_far]
     recommended = min(eligible, key=lambda row: (row.frr, -row.threshold)) if eligible else None
