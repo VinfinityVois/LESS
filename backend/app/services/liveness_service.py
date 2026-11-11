@@ -54,7 +54,7 @@ class LivenessService:
             "challenge_id": challenge_id, "actions": actions,
             "expires_at": expires.isoformat(),
             "instructions": {
-                "blink": "Моргните один раз, глядя в камеру",
+                "blink": "Моргните естественно в одной из трёх серий, затем откройте глаза и удерживайте взгляд на камере ещё секунду",
                 "turn_head": "Медленно поверните голову в сторону и верните прямо",
                 "open_mouth": "Откройте рот и закройте его",
                 "smile": "Улыбнитесь и верните нейтральное выражение",
@@ -143,31 +143,54 @@ class LivenessService:
                     samples = [self._landmarks(frame, landmarker) for frame in frames]
                     if action == "blink":
                         ears = [(self._ear(p["landmarks"], (33, 160, 158, 133, 153, 144)) + self._ear(p["landmarks"], (362, 385, 387, 263, 373, 380))) / 2.0 for p in samples]
-                        # Smooth single-frame landmark jitter with a three-sample median.
-                        # Three 12-frame bursts give the operator repeated chances to blink
-                        # naturally without restarting the whole four-action challenge.
-                        smooth_ears = [
-                            float(np.median(ears[max(0, i - 1):min(len(ears), i + 2)]))
-                            for i in range(len(ears))
-                        ]
-                        peak, trough = max(smooth_ears), min(smooth_ears)
-                        peak_index, trough_index = smooth_ears.index(peak), smooth_ears.index(trough)
-                        # EAR varies with face geometry, camera angle and glasses. Use a
-                        # per-subject relative threshold and require a complete open-close-
-                        # open cycle plus a meaningful absolute change. The 0.84 ratio
-                        # accommodates shallow but visible blinks from laptop cameras.
-                        open_level = max(0.14, peak * 0.88)
-                        opened_before = any(value >= open_level for value in smooth_ears[:trough_index])
-                        reopened_after = any(value >= open_level for value in smooth_ears[trough_index + 1:])
-                        closed_ratio = trough / max(peak, 1e-6)
-                        signal_delta = peak - trough
-                        passed = (
-                            peak > 0.14 and closed_ratio < 0.84 and signal_delta >= 0.08
-                            and opened_before and reopened_after
-                            and peak_index != trough_index
-                        )
+                        # The client sends three 12-frame bursts. Score each burst separately
+                        # so one closed-eye final frame cannot hide a complete blink earlier.
+                        burst_results = []
+                        for burst_index in range(3):
+                            segment = ears[burst_index * 12:(burst_index + 1) * 12]
+                            if len(segment) < 8:
+                                continue
+                            smooth = [
+                                float(np.median(segment[max(0, i - 1):min(len(segment), i + 2)]))
+                                for i in range(len(segment))
+                            ]
+                            segment_peak, segment_trough = max(smooth), min(smooth)
+                            trough_index = smooth.index(segment_trough)
+                            open_level = max(0.14, segment_peak * 0.86)
+                            opened_before = any(value >= open_level for value in smooth[:trough_index])
+                            reopened_after = any(value >= open_level for value in smooth[trough_index + 1:])
+                            ratio = segment_trough / max(segment_peak, 1e-6)
+                            delta = segment_peak - segment_trough
+                            burst_passed = (
+                                segment_peak > 0.14 and ratio < 0.86 and delta >= 0.07
+                                and opened_before and reopened_after
+                            )
+                            burst_results.append({
+                                "burst": burst_index + 1,
+                                "passed": bool(burst_passed),
+                                "ear_min": round(segment_trough, 4),
+                                "ear_max": round(segment_peak, 4),
+                                "ratio": round(ratio, 4),
+                                "signal_delta": round(delta, 4),
+                                "opened_before": bool(opened_before),
+                                "reopened_after": bool(reopened_after),
+                            })
+                        successful_bursts = [item for item in burst_results if item["passed"]]
+                        best = max(burst_results, key=lambda item: (item["passed"], item["signal_delta"]), default={
+                            "ear_min": 0.0, "ear_max": 0.0, "ratio": 1.0,
+                            "signal_delta": 0.0, "opened_before": False, "reopened_after": False,
+                            "burst": 0, "passed": False,
+                        })
+                        passed = bool(successful_bursts)
+                        trough = best["ear_min"]
+                        peak = best["ear_max"]
+                        closed_ratio = best["ratio"]
+                        signal_delta = best["signal_delta"]
+                        opened_before = best["opened_before"]
+                        reopened_after = best["reopened_after"]
                         metric = round(signal_delta, 4)
                     elif action == "turn_head":
+
                         yaws = [self._yaw(p["landmarks"]) for p in samples]
                         passed = max(yaws) - min(yaws) > 0.09
                         metric = round(max(yaws) - min(yaws), 4)
@@ -195,7 +218,9 @@ class LivenessService:
                                 "opened_before": opened_before,
                                 "reopened_after": reopened_after,
                                 "frame_count": len(ears),
-                                "blink_score": round(max(0.0, min(100.0, (0.84 - closed_ratio) / 0.24 * 100.0)), 1),
+                                "blink_score": round((max(0.0, min(100.0, (0.86 - closed_ratio) / 0.24 * 70.0)) + min(30.0, signal_delta / 0.18 * 30.0)) if reopened_after else min(60.0, max(0.0, signal_delta / 0.18 * 60.0)), 1),
+                                "successful_bursts": sum(1 for item in burst_results if item["passed"]),
+                                "burst_results": burst_results,
                             } if action == "blink" else {"frame_count": len(samples)}),
                             "results": results,
                         }
