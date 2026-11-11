@@ -27,6 +27,7 @@ from app.services.face_recognition_service import face_recognition_service
 from app.services.ai_analyzer import ai_analyzer
 from app.services.ml_anomaly_detector import ml_anomaly_detector
 from app.services.incident_correlation import incident_correlation_engine
+from app.services.fingerprint_service import fingerprint_service
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
     access_policy,
@@ -309,6 +310,12 @@ async def auth_set_admin_active(admin_id: int, body: AdminActiveRequest, request
 @app.get("/api/auth/audit")
 async def auth_audit(limit: int = Query(100, ge=1, le=500)):
     return {"events": admin_auth_service.get_audit(limit)}
+
+
+@app.get("/api/biometrics/fingerprint/status")
+async def fingerprint_device_status():
+    status = fingerprint_service.status()
+    return {"available": status.available, "device_id": status.device_id, "vendor": status.vendor, "message": status.message}
 
 
 @app.post("/api/biometrics/liveness/challenge")
