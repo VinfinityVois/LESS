@@ -39,6 +39,19 @@ class IncidentCorrelationTests(unittest.TestCase):
         self.assertNotIn("RAW-UID-001", str(result))
 
 
+
+    def test_malformed_subject_identifier_is_ignored(self):
+        now = datetime.now(timezone.utc).isoformat()
+        result = IncidentCorrelationEngine().build_incidents([{
+            "id": 31,
+            "user_id": "invalid-id",
+            "nfc_uid": "",
+            "event_type": "denied",
+            "reason": "policy_denied",
+            "created_at": now,
+        }])
+        self.assertEqual(result, [])
+
     def test_rapid_multi_door_sequence_is_correlated(self):
         now = datetime.now(timezone.utc)
         logs = [
