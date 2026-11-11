@@ -138,7 +138,7 @@ export default function IncidentsPage({ canAnalyze = true }: { canAnalyze?: bool
                   <span className="incident-id">INC-{String(incident.id).padStart(5, "0")} · {incident.status === "open" ? "ОТКРЫТ" : incident.status === "resolved" ? "ОБРАБОТАН" : "ОТКЛОНЁН"}</span>
                 </div>
                 <div className="incident-card__heading">
-                  <div><h2>{incident.title}</h2><p>{incident.summary}</p></div>
+                  <div><h2>{incident.title}</h2>{incident.evidence?.subject_label && <span className="incident-subject-label">{incident.evidence.subject_label}</span>}<p>{incident.summary}</p></div>
                   <div className="incident-risk"><strong>{incident.risk_score}</strong><span>RISK / 100</span></div>
                 </div>
                 <div className="incident-card__meta">
