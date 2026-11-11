@@ -634,6 +634,7 @@ async def get_user(user_id: int, request: Request):
     if request.state.admin["role"] == "security":
         user.pop("photo_data_url", None)
         user.pop("profile_photo_data_url", None)
+        user.pop("face_appearance", None)
     return user
 
 
