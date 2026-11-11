@@ -255,8 +255,8 @@ export default function BiometricLabPage() {
           <div className="surface-panel pad-metrics-card">
             <div className="pad-lab-panel-head"><div><span className="eyebrow">EVALUATION / DATASET</span><h2>Метрики испытаний</h2></div><ShieldCheck size={19} className="pad-muted-icon" /></div>
             {summary ? <div className="pad-metric-grid">
-              <div><span>APCER</span><strong>{(summary.apcer * 100).toFixed(2)}%</strong><small>Ложное принятие атак</small></div>
-              <div><span>BPCER</span><strong>{(summary.bpcer * 100).toFixed(2)}%</strong><small>Ложный отказ живым</small></div>
+              <div><span>APCER</span><strong>{(summary.apcer * 100).toFixed(2)}%</strong><small>95% CI: {(summary.apcer_wilson_95[0] * 100).toFixed(2)}–{(summary.apcer_wilson_95[1] * 100).toFixed(2)}%</small></div>
+              <div><span>BPCER</span><strong>{(summary.bpcer * 100).toFixed(2)}%</strong><small>95% CI: {(summary.bpcer_wilson_95[0] * 100).toFixed(2)}–{(summary.bpcer_wilson_95[1] * 100).toFixed(2)}%</small></div>
               <div><span>ACER</span><strong>{(summary.acer * 100).toFixed(2)}%</strong><small>Среднее APCER/BPCER</small></div>
               <div><span>TRIALS</span><strong>{summary.counts.total}</strong><small>{summary.counts.bona_fide} live · {summary.counts.attacks} attacks</small></div>
             </div> : <div className="pad-no-data"><XCircle size={20} /><strong>Недостаточно данных</strong><span>{report?.message || "Для расчёта нужны успешные и атакующие предъявления."}</span></div>}
