@@ -12,8 +12,9 @@ import UsersPage from "./UsersPage";
 import LogsPage from "./LogsPage";
 import AdminAccountsPage from "./AdminAccountsPage";
 import FaceEnroll from "../components/FaceEnroll";
+import SecurityLabPage from "./SecurityLabPage";
 
-type NavId = "live" | "logs" | "incidents" | "users" | "diagnostics" | "guests" | "admins";
+type NavId = "live" | "logs" | "incidents" | "users" | "diagnostics" | "guests" | "admins" | "testing";
 const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "live", label: "Мониторинг", icon: Video, group: "ОПЕРАТИВНЫЙ ПОСТ" },
   { id: "logs", label: "Журнал событий", icon: History, group: "ОПЕРАТИВНЫЙ ПОСТ" },
@@ -21,11 +22,12 @@ const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "users", label: "Сотрудники и доступ", icon: Users, group: "УПРАВЛЕНИЕ" },
   { id: "guests", label: "Гостевые пропуска", icon: BadgeCheck, group: "УПРАВЛЕНИЕ" },
   { id: "diagnostics", label: "Оборудование", icon: SlidersHorizontal, group: "СИСТЕМА" },
+  { id: "testing", label: "Лаборатория испытаний", icon: Activity, group: "СИСТЕМА" },
   { id: "admins", label: "Администраторы", icon: ShieldCheck, group: "АДМИНИСТРИРОВАНИЕ" },
 ];
 const pageTitles: Record<NavId, string> = {
   live: "Пост охраны", logs: "Журнал событий", incidents: "Центр инцидентов",
-  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли",
+  users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли", testing: "Лаборатория испытаний",
 };
 function DeviceState({ icon: Icon, label, value, ok }: { icon: typeof Camera; label: string; value: string; ok: boolean }) {
   return <div className="device-state"><span className={`device-state__icon ${ok ? "is-ok" : "is-off"}`}><Icon size={14} /></span><span className="device-state__label">{label}</span><span className={`device-state__value ${ok ? "is-ok" : "is-off"}`}>{value}</span></div>;
@@ -47,6 +49,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const [guestDialogHours, setGuestDialogHours] = useState("2");
   const [guestActionBusy, setGuestActionBusy] = useState<number | null>(null);
   const [mobileNav, setMobileNav] = useState(false);
+  const [toast, setToast] = useState<{message:string;kind:"success"|"error"|"info"} | null>(null);
 
   useEffect(() => {
     void refresh();
@@ -130,10 +133,10 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     </aside>
     {mobileNav && <button className="mobile-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
     <section className="less-workspace">
-      <header className="topbar"><div className="topbar__left"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Открыть меню"><Menu size={19} /></button><div className="breadcrumbs"><span>LESS CONTROL</span><ChevronRight size={13} /><strong>{pageTitles[nav]}</strong></div></div><div className="topbar__right"><div className="system-mode"><span className="system-mode__dot" /> СИСТЕМА {backendOnline ? "АКТИВНА" : "НЕТ СВЯЗИ"}</div><div className="topbar-clock"><Clock3 size={15} /><strong>{clock || "--:--:--"}</strong><span>{dateLabel}</span></div><div className="topbar-icon" aria-label="Уведомления не подключены" title="Сервис уведомлений пока не подключён"><Bell size={17} /></div><div className="operator-chip"><div className="operator-avatar">{admin.display_name.slice(0, 2).toUpperCase()}</div><div><strong>{admin.display_name || admin.username}</strong><span>{admin.role === "superadmin" ? "Суперадминистратор" : admin.role === "admin" ? "Администратор" : "Охрана · просмотр"}</span></div><button type="button" className="operator-logout" onClick={onLogout} title="Выйти из учётной записи" aria-label="Выйти"><LogOut size={16}/></button></div></div></header>
+      {toast && <div className={`fixed right-6 top-20 z-[120] max-w-md rounded-lg border px-4 py-3 shadow-2xl text-sm ${toast.kind === "error" ? "border-red-400/40 bg-red-950/90 text-red-100" : "border-primary/30 bg-surface-low text-primary"}`} role="status" aria-live="polite">{toast.message}</div>}\n      <header className="topbar"><div className="topbar__left"><button className="mobile-menu" onClick={() => setMobileNav(!mobileNav)} aria-label="Открыть меню"><Menu size={19} /></button><div className="breadcrumbs"><span>LESS CONTROL</span><ChevronRight size={13} /><strong>{pageTitles[nav]}</strong></div></div><div className="topbar__right"><div className="system-mode"><span className="system-mode__dot" /> СИСТЕМА {backendOnline ? "АКТИВНА" : "НЕТ СВЯЗИ"}</div><div className="topbar-clock"><Clock3 size={15} /><strong>{clock || "--:--:--"}</strong><span>{dateLabel}</span></div><div className="topbar-icon" aria-label="Уведомления не подключены" title="Сервис уведомлений пока не подключён"><Bell size={17} /></div><div className="operator-chip"><div className="operator-avatar">{admin.display_name.slice(0, 2).toUpperCase()}</div><div><strong>{admin.display_name || admin.username}</strong><span>{admin.role === "superadmin" ? "Суперадминистратор" : admin.role === "admin" ? "Администратор" : "Охрана · просмотр"}</span></div><button type="button" className="operator-logout" onClick={onLogout} title="Выйти из учётной записи" aria-label="Выйти"><LogOut size={16}/></button></div></div></header>
       <div className="system-strip"><DeviceState icon={Server} label="BACKEND" value={backendOnline ? "ONLINE" : "OFFLINE"} ok={backendOnline} /><DeviceState icon={Camera} label="КАМЕРА" value={cameraOk ? "ONLINE" : status?.camera === "stopped" ? "STOPPED" : "НЕТ СИГНАЛА"} ok={cameraOk} /><DeviceState icon={Nfc} label="NFC / СКУД" value={serialOk ? "ONLINE" : status?.serial === "disconnected" ? "DISCONNECTED" : "ОЖИДАНИЕ"} ok={serialOk} /><DeviceState icon={Activity} label="БАЗА ДАННЫХ" value={dbOk ? "ONLINE" : "НЕ ПРОВЕРЕНА"} ok={dbOk} /><div className="system-strip__ai"><BrainCircuit size={15} /><span>AI ANALYTICS</span><b className={aiOk ? "is-ready" : "is-waiting"}>{aiOk ? "ДОСТУПЕН" : status?.ai ? status.ai.toUpperCase() : "НЕ ПРОВЕРЕН"}</b></div></div>
       <main className="workspace-content">
-        {nav === "live" && <LivePage status={status} />}
+        {nav === "live" && <LivePage status={status} />}\n        {nav === "testing" && <SecurityLabPage />}
         {nav === "users" && <UsersPage onEnroll={setEnrollUser} readOnly={admin.role === "security"} />}
         {nav === "logs" && <LogsPage />}
         {nav === "admins" && admin.role === "superadmin" && <AdminAccountsPage currentAdminId={admin.id} />}
