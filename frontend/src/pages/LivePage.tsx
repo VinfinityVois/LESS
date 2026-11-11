@@ -135,6 +135,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
         challengeBusyRef.current = true;
         setAccessResult(null);
         setCurrentSubject(null);
+        setIdentitySimilarity(null);
         setSubjectStage("card");
         setDisplayMessage("Карта считана. Поиск карточки субъекта…");
         try {
