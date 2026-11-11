@@ -56,6 +56,8 @@ class LocalAIAssistant:
             "doors": evidence.get("doors", []),
             "factors": evidence.get("factors", []),
             "risk_scale": evidence.get("risk_scale"),
+            "ml_model": evidence.get("ml_model"),
+            "ml_model_version": evidence.get("ml_model_version"),
         }
         system_prompt = (
             "Ты — локальный read-only помощник оператора LESS. Объясняй только факты из JSON. "
