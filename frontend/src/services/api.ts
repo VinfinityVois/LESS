@@ -332,3 +332,43 @@ export async function listDoors() {
 }
 
 export default api;
+
+export interface SecurityIncident {
+  id: number;
+  dedupe_key: string;
+  subject_ref?: string | null;
+  title: string;
+  summary: string;
+  severity: "low" | "medium" | "high" | "critical";
+  risk_score: number;
+  evidence: {
+    event_ids?: number[];
+    doors?: string[];
+    factors?: { code: string; points: number; count?: number; doors?: string[]; model?: string }[];
+    risk_scale?: string;
+    ml_model?: string | null;
+  };
+  first_seen: string;
+  last_seen: string;
+  occurrences: number;
+  status: "open" | "resolved" | "dismissed";
+}
+
+export async function analyzeSecurityIncidents() {
+  const { data } = await api.post<{ ml_status?: string; generated: number; incidents: SecurityIncident[] }>("/api/ai/incidents/analyze");
+  return data;
+}
+export async function getSecurityIncidents(status?: "open" | "resolved" | "dismissed") {
+  const { data } = await api.get<{ incidents: SecurityIncident[] }>("/api/ai/incidents", { params: { limit: 200, status } });
+  return data.incidents;
+}
+export async function getLocalAIAssistantStatus() {
+  const { data } = await api.get<{ enabled: boolean; available: boolean; model?: string; message?: string }>("/api/ai/assistant/status");
+  return data;
+}
+export async function explainSecurityIncident(incidentId: number, question = "") {
+  const { data } = await api.post<{ status: string; answer?: string; model?: string; message?: string; disclaimer?: string }>("/api/ai/assistant/explain", {
+    incident_id: incidentId, question,
+  }, { timeout: 30000 });
+  return data;
+}
