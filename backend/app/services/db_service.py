@@ -490,6 +490,15 @@ class DBService:
             if not row:
                 return False
             if action == "delete":
+                conn.execute(
+                    """INSERT OR IGNORE INTO guest_pass_archive
+                       (id,code_hash,code_prefix,label,expires_at,max_uses,uses,door_ids,status,
+                        created_at,updated_at,archived_at,archive_reason)
+                       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (row["id"], row["code_hash"], row["code_prefix"], row["label"], row["expires_at"],
+                     row["max_uses"], row["uses"], row["door_ids"], row["status"], row["created_at"],
+                     now.isoformat(), now.isoformat(), "manually_deleted"),
+                )
                 cur = conn.execute("DELETE FROM guest_passes WHERE id=?", (pass_id,))
                 return cur.rowcount > 0
             if action == "close":
