@@ -280,6 +280,8 @@ class PADTrialRequest(BaseModel):
     attack_type: str = Field(default="", max_length=64)
     accepted: bool
     failure_reason: str = Field(default="", max_length=200)
+    test_condition: str = Field(default="", max_length=120)
+    camera_label: str = Field(default="", max_length=80)
 
 
 class LivenessVerifyRequest(BaseModel):
@@ -381,6 +383,8 @@ async def record_pad_evaluation_trial(body: PADTrialRequest):
         body.attack_type.strip(),
         body.accepted,
         body.failure_reason,
+        body.test_condition,
+        body.camera_label,
     )
     return {"id": trial_id, "recorded": True}
 
