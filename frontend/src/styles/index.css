@@ -763,3 +763,6 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .face-appearance-controls small{grid-column:1/-1;color:#738b90;font-size:8px;line-height:1.45}
 @media(min-width:901px){.face-modal:has(.face-analysis-grid) .face-appearance-controls{grid-column:2;grid-row:5;margin:0 19px 10px 0}.face-modal:has(.face-analysis-grid) .face-guidance{grid-row:6;margin:0 19px 10px 0}}
 @media(max-width:900px){.face-appearance-controls{margin:0 12px 10px}}
+
+.face-mesh-lines line{stroke:#78e8dc;stroke-width:1.1;stroke-opacity:.52;vector-effect:non-scaling-stroke;filter:drop-shadow(0 0 2px rgba(91,229,216,.38))}
+.face-landmark-overlay circle{filter:drop-shadow(0 0 2px rgba(91,229,216,.45))}
