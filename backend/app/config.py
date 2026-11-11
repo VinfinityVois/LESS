@@ -47,6 +47,9 @@ class Settings(BaseSettings):
     # AI
     AI_ANOMALY_WINDOW_MINUTES: int = 60
     AI_FAILED_ATTEMPTS_THRESHOLD: int = 5
+    AI_ML_LOOKBACK_DAYS: int = 30
+    AI_ML_MIN_SUBJECTS: int = 12
+    AI_ML_MIN_EVENTS_PER_SUBJECT: int = 3
 
     # Optional local-only LLM assistant (disabled until a local runtime is installed)
     LOCAL_LLM_ENABLED: bool = False
