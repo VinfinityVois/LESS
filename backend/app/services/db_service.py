@@ -580,7 +580,7 @@ class DBService:
                      evidence_json=excluded.evidence_json,
                      last_seen=excluded.last_seen,
                      occurrences=CASE WHEN excluded.last_seen > security_incidents.last_seen THEN security_incidents.occurrences+1 ELSE security_incidents.occurrences END,
-                     status=CASE WHEN security_incidents.status='resolved' THEN 'open' ELSE security_incidents.status END,
+                     status=CASE WHEN excluded.last_seen > security_incidents.last_seen AND security_incidents.status!='open' THEN 'open' ELSE security_incidents.status END,
                      updated_at=excluded.updated_at""",
                 (
                     incident["dedupe_key"], incident.get("subject_ref"), incident["title"],
