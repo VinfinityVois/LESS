@@ -104,7 +104,7 @@ class IncidentCorrelationEngine:
                 points = min(20, max(0, round(float(ml_item.get("relative_anomaly_score", 0)) * 0.2)))
                 if points:
                     risk += points
-                    factors.append({"code": "ml_anomaly", "points": points, "model": ml_item.get("model")})
+                    factors.append({"code": "ml_anomaly", "points": points, "model": ml_item.get("model"), "model_version": ml_item.get("model_version"), "relative_score": ml_item.get("relative_anomaly_score")})
             risk = min(100, risk)
             if risk < 20:
                 continue
@@ -129,6 +129,7 @@ class IncidentCorrelationEngine:
                     "doors": doors,
                     "factors": factors,
                     "ml_model": ml_item.get("model") if ml_item else None,
+                    "ml_model_version": ml_item.get("model_version") if ml_item else None,
                     "risk_scale": "heuristic_0_100_not_probability",
                 },
             })
