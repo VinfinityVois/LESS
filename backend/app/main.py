@@ -25,6 +25,7 @@ from app.services.admin_auth_service import admin_auth_service
 from app.services.liveness_service import liveness_service
 from app.services.face_recognition_service import face_recognition_service
 from app.services.ai_analyzer import ai_analyzer
+from app.services.ml_anomaly_detector import ml_anomaly_detector
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
     access_policy,
@@ -144,6 +145,13 @@ async def hardware_status():
 @app.post("/api/ai/analyze")
 async def run_ai_analyze():
     return {"generated_alerts": ai_analyzer.run_periodic_check()}
+
+
+@app.post("/api/ai/anomaly/analyze")
+async def run_ml_anomaly_analysis():
+    """Run advisory cohort anomaly analysis; never changes access decisions."""
+    logs = db_service.get_recent_logs(limit=1000)
+    return ml_anomaly_detector.analyze(logs)
 
 
 @app.post("/api/camera/start")
