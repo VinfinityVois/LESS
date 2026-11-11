@@ -52,19 +52,19 @@ export default function LogsPage() {
   }, []);
   useEffect(() => { void loadDays(); }, [loadDays]);
   useEffect(() => { void loadDay(selectedDay); }, [selectedDay, loadDay]);
-  const download = async () => {
+  const download = async (day = selectedDay) => {
     try {
-      const blob = await exportLogs(selectedDay || undefined);
+      const blob = await exportLogs(day || undefined);
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `less-events-${selectedDay || "all"}.csv`;
+      link.download = `less-events-${day || "all"}.csv`;
       link.click();
       URL.revokeObjectURL(url);
     } catch { setError("Не удалось экспортировать журнал."); }
   };
   return <section className="content-section logs-page">
-    <div className="page-heading"><div><span className="eyebrow">АУДИТ ДОСТУПА</span><h1>Журнал событий</h1><p>Текущий день и архив завершённых суток. История сохраняется в базе и доступна для экспорта.</p></div><div className="users-toolbar-actions"><button className="users-button" onClick={() => void loadDays()}><RefreshCw size={15}/> Обновить</button><button className="users-button users-button--primary" onClick={() => void download()}><Download size={15}/> Экспорт CSV</button></div></div>
+    <div className="page-heading"><div><span className="eyebrow">АУДИТ ДОСТУПА</span><h1>Журнал событий</h1><p>Текущий день и архив завершённых суток. История сохраняется в базе и доступна для экспорта.</p></div><div className="users-toolbar-actions"><button className="users-button" onClick={() => void loadDays()}><RefreshCw size={15}/> Обновить</button><button className="users-button users-button--primary" onClick={() => void download()}><Download size={15}/> Экспорт дня</button><button className="users-button" onClick={() => void download("")}><Download size={15}/> Весь архив</button></div></div>
     <div className="logs-archive-layout">
       <aside className="logs-day-list"><div className="users-section-title"><div><span className="eyebrow">АРХИВ ПО ДАТАМ</span><h2><Archive size={17}/> Дни</h2></div></div>
         {days.map((day) => <button key={day.day} className={selectedDay === day.day ? "is-selected" : ""} onClick={() => setSelectedDay(day.day)}><CalendarDays size={15}/><span><b>{new Date(day.day + "T12:00:00").toLocaleDateString("ru-RU", { day: "2-digit", month: "long", year: "numeric" })}</b><small>{day.events} событий · {day.granted} разрешено · {day.denied} отказов</small></span></button>)}
