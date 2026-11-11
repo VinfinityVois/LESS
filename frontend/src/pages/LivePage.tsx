@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { openCameraOnExternalDisplay, closeExternalDisplay } from "../services/desktopDisplay";
-import { getLogs, listUsers, simulateTestCard, readSerialCardLine, createFaceAccessChallenge, checkFaceAccess, getHardwareStatus, verifySecurityAudit, type FaceAccessChallenge, type AccessLog, type SystemStatus, type User } from "../services/api";
+import { getLogs, listUsers, simulateTestCard, readSerialCardLine, createFaceAccessChallenge, checkFaceAccess, getHardwareStatus, verifySecurityAudit, recognizeMonitoringFace, type FaceAccessChallenge, type AccessLog, type SystemStatus, type User } from "../services/api";
 
 function fmt(iso?: string | null) {
   if (!iso) return "—";
@@ -30,6 +30,10 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const latestFrameRef = useRef<Blob | null>(null);
   const seenCardRef = useRef("");
   const challengeBusyRef = useRef(false);
+  const recognitionBusyRef = useRef(false);
+  const lastRecognitionAtRef = useRef(0);
+  const faceChallengeRef = useRef<FaceAccessChallenge | null>(null);
+  const subjectStageRef = useRef("idle");
   const [faceChallenge, setFaceChallenge] = useState<FaceAccessChallenge | null>(null);
   const [challengeEvidence, setChallengeEvidence] = useState<{action:string;frames:string[]}[]>([]);
   const [challengeStep, setChallengeStep] = useState(0);
@@ -37,7 +41,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const [accessBusy, setAccessBusy] = useState(false);
   const [accessResult, setAccessResult] = useState<any>(null);
   const [currentSubject, setCurrentSubject] = useState<any>(null);
-  const [subjectStage, setSubjectStage] = useState<"idle" | "card" | "challenge" | "recognizing" | "granted" | "denied">("idle");
+  const [subjectStage, setSubjectStage] = useState<"idle" | "identified" | "card" | "challenge" | "recognizing" | "granted" | "denied">("idle");
   const [externalDisplayMode, setExternalDisplayMode] = useState<"video" | "events" | null>(() => {
     const saved = localStorage.getItem("less-external-display-mode");
     return localStorage.getItem("less-external-display-active") === "1" && (saved === "video" || saved === "events") ? saved : null;
@@ -46,8 +50,34 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
   const cameraOk = status?.camera === "running";
   const serialOk = status?.serial === "connected";
   const activeSubject = faceChallenge?.user || currentSubject;
-  const subjectStageLabel = ({ idle: "НЕ НАЧАТА", card: "КАРТА СЧИТАНА", challenge: "ПРОВЕРКА ПРИСУТСТВИЯ", recognizing: "РАСПОЗНАВАНИЕ ЛИЦА", granted: "ДОСТУП ПОДТВЕРЖДЁН", denied: "ДОСТУП ОТКЛОНЁН" } as const)[subjectStage];
-  const onCameraFrame = useCallback((blob: Blob) => { latestFrameRef.current = blob; }, []);
+  faceChallengeRef.current = faceChallenge;
+  subjectStageRef.current = subjectStage;
+  const subjectStageLabel = ({ idle: "ОЖИДАНИЕ", identified: "ЛИЧНОСТЬ ОПРЕДЕЛЕНА · БЕЗ ПРОХОДА", card: "КАРТА СЧИТАНА", challenge: "ПРОВЕРКА ПРИСУТСТВИЯ", recognizing: "РАСПОЗНАВАНИЕ ЛИЦА", granted: "ДОСТУП ПОДТВЕРЖДЁН", denied: "ДОСТУП ОТКЛОНЁН" } as const)[subjectStage];
+  const onCameraFrame = useCallback((blob: Blob) => {
+    latestFrameRef.current = blob;
+    const now = Date.now();
+    if (now - lastRecognitionAtRef.current < 1400 || recognitionBusyRef.current || faceChallengeRef.current) return;
+    lastRecognitionAtRef.current = now;
+    recognitionBusyRef.current = true;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const frame = String(reader.result || "");
+        if (!frame.startsWith("data:image/")) return;
+        const result = await recognizeMonitoringFace(frame);
+        if (result.status === "identified" && result.subject) {
+          setCurrentSubject(result.subject);
+          if (subjectStageRef.current === "idle" || subjectStageRef.current === "identified") setSubjectStage("identified");
+        } else if (subjectStageRef.current === "identified") {
+          setCurrentSubject(null);
+          setSubjectStage("idle");
+        }
+      } catch { /* recognition must not interrupt the live camera feed */ }
+      finally { recognitionBusyRef.current = false; }
+    };
+    reader.onerror = () => { recognitionBusyRef.current = false; };
+    reader.readAsDataURL(blob);
+  }, []);
   const parseCardUid = (raw: string | null) => {
     if (!raw) return null;
     let value = raw.trim();
@@ -249,7 +279,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <VideoFeed onFrame={onCameraFrame} hidden={externalDisplayMode === "video"} />
           <div className="camera-frame__top"><span className="camera-tag"><Camera size={13} /> CAM–01</span><span className="camera-tag camera-tag--muted">ГЛАВНЫЙ ВХОД / КПП–01</span></div>
           <div className="camera-frame__corners"><i /><i /><i /><i /></div>
-          <div className="camera-frame__bottom"><div className="subject-placeholder">{activeSubject?.photo_data_url ? <img className="subject-placeholder__photo" src={activeSubject.photo_data_url} alt="" /> : <div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div>}<div><strong>{activeSubject?.name || (subjectStage === "card" ? "Карта считана" : "Ожидание субъекта")}</strong><span>{activeSubject ? (activeSubject.position || "Сотрудник · карточка активна") : "Поднесите NFC-карту к считывателю"}</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
+          <div className="camera-frame__bottom"><div className="subject-placeholder">{activeSubject?.photo_data_url ? <img className="subject-placeholder__photo" src={activeSubject.photo_data_url} alt="" /> : <div className="subject-placeholder__icon"><UserRoundSearch size={19} /></div>}<div><strong>{activeSubject?.name || (subjectStage === "card" ? "Карта считана" : "Ожидание субъекта")}</strong><span>{activeSubject ? (activeSubject.position || "Сотрудник · карточка активна") : "Ожидание лица перед камерой"}</span></div></div><span className="camera-frame__resolution">LIVE VIEW · LOCAL</span></div>
         </div>
         {faceChallenge && <section className="face-access-challenge">
           <span className="eyebrow">ДВУХФАКТОРНАЯ ПРОВЕРКА · {challengeStep + 1}/{faceChallenge.actions.length}</span>
@@ -279,7 +309,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ИДЕНТИФИКАЦИЯ</span><h2>Факторы проверки</h2></div><span className="standby-pill">STANDBY</span></div>
           <div className="factor-list">
             <Factor icon={Nfc} label="NFC-карта / браслет" detail="Ожидание UID от считывателя" state={serialOk ? "ready" : "waiting"} />
-            <Factor icon={ScanFace} label="Распознавание лица" detail={"SFace 128D · " + registeredFaces + " активных шаблонов. Проверка запускается после считывания карты."} state={registeredFaces ? "ready" : "waiting"} />
+            <Factor icon={ScanFace} label="Распознавание лица" detail={"SFace 128D · " + registeredFaces + " активных шаблонов. Личность определяется автоматически, карта и PIN не требуются."} state={registeredFaces ? "ready" : "waiting"} />
             <Factor icon={LockKeyhole} label="PIN-код" detail="Второй фактор подтверждения" state="waiting" />
             <Factor icon={Fingerprint} label="Отпечаток пальца" detail="Временная программная заглушка" state="stub" />
           </div>
@@ -288,7 +318,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
 
         <section className="surface-panel subject-panel">
           <div className="panel-heading panel-heading--compact"><div><span className="eyebrow">ТЕКУЩАЯ СЕССИЯ</span><h2>Карточка субъекта</h2></div><UserRoundSearch size={18} className="muted-icon" /></div>
-          {activeSubject ? <div className={"subject-identified " + (faceChallenge || accessBusy ? "is-verifying" : "")}>{activeSubject.photo_data_url && <img src={activeSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{activeSubject.name}</strong><span>{activeSubject.position || "Должность не указана"}</span><small>ID · {activeSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>{subjectStage === "card" ? "Поиск карточки…" : "Субъект не определён"}</strong><span>Карточка активируется сразу после чтения NFC UID.</span></div>}
+          {activeSubject ? <div className={"subject-identified " + (faceChallenge || accessBusy ? "is-verifying" : "")}>{activeSubject.photo_data_url && <img src={activeSubject.photo_data_url} alt="Фото сотрудника"/>}<div><strong>{activeSubject.name}</strong><span>{activeSubject.position || "Должность не указана"}</span><small>ID · {activeSubject.id}</small></div></div> : <div className="subject-empty"><div className="subject-empty__icon"><ScanFace size={22} /></div><strong>{subjectStage === "card" ? "Поиск карточки…" : "Субъект не определён"}</strong><span>Распознавание показывает личность; NFC, PIN и отпечаток проверяются отдельно для решения о проходе.</span></div>}
           <div className="subject-meta"><span>СТАТУС ПРОВЕРКИ</span><b>{subjectStageLabel}</b></div>
         </section>
 
