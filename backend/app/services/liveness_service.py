@@ -42,7 +42,7 @@ class LivenessService:
             if value["expires_at"] > now
         }
         challenge_id = secrets.token_urlsafe(32)
-        actions = list(secrets.SystemRandom().sample(self.ACTIONS, len(self.ACTIONS)))
+        actions = list(secrets.SystemRandom().sample(self.ACTIONS, 2))
         expires = now + timedelta(seconds=self.TTL_SECONDS)
         self._challenges[challenge_id] = {
             "admin_id": admin_id, "subject_id": subject_id,
@@ -126,7 +126,7 @@ class LivenessService:
             options = vision.FaceLandmarkerOptions(
                 base_options=mp_python.BaseOptions(model_asset_path=str(self.MODEL_PATH)),
                 running_mode=vision.RunningMode.IMAGE,
-                num_faces=2,
+                num_faces=1,
                 min_face_detection_confidence=0.65,
                 min_face_presence_confidence=0.65,
                 min_tracking_confidence=0.5,

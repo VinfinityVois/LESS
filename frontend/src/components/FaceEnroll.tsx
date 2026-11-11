@@ -14,6 +14,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const lastVideoTime = useRef(-1);
+  const lastInferenceAt = useRef(0);
+  const lastUiUpdateAt = useRef(0);
+  const latestLandmarksRef = useRef<Array<{x:number;y:number;z:number}> | null>(null);
+  const challengeCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [stage, setStage] = useState<Stage>("liveness");
   const [challenge, setChallenge] = useState<{challenge_id:string;actions:string[];instructions:Record<string,string>} | null>(null);
   const [challengeIndex, setChallengeIndex] = useState(0);
@@ -49,43 +53,67 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         // Release the shared OpenCV/WebSocket camera only after the subject is confirmed.
         cameraChannel.postMessage({ type: "pause-camera" });
         cameraPaused = true;
-        await new Promise((resolve) => window.setTimeout(resolve, 1200));
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
         if (cancelled) return;
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
-          navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960, max: 1280 }, height: { ideal: 540, max: 720 }, frameRate: { ideal: 24, max: 30 } }, audio: false }),
         ]);
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "CPU" },
-          runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true,
-        });
+        const modelOptions = {
+          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" },
+          runningMode: "VIDEO" as const, numFaces: 1, outputFaceBlendshapes: true,
+          minFaceDetectionConfidence: 0.65, minFacePresenceConfidence: 0.65, minTrackingConfidence: 0.6,
+        };
+        let landmarker: FaceLandmarker;
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(vision, { ...modelOptions, baseOptions: { ...modelOptions.baseOptions, delegate: "GPU" } });
+        } catch {
+          landmarker = await FaceLandmarker.createFromOptions(vision, { ...modelOptions, baseOptions: { ...modelOptions.baseOptions, delegate: "CPU" } });
+        }
         if (cancelled) { landmarker.close(); return; }
         landmarkerRef.current = landmarker;
         setModelReady(true);
         const tick = () => {
           const video = videoRef.current;
-          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current) {
+          const now = performance.now();
+          // Synchronous MediaPipe inference is capped at 8 FPS; the UI is
+          // refreshed at most 5 times per second to avoid React render storms.
+          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current && now - lastInferenceAt.current >= 125) {
             lastVideoTime.current = video.currentTime;
-            const output = landmarker.detectForVideo(video, performance.now());
+            lastInferenceAt.current = now;
+            const output = landmarker.detectForVideo(video, now);
             const face = output.faceLandmarks?.[0];
             if (face?.length) {
-              setFaceFound(true);
-              setLandmarks(face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 })));
+              const points = face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 }));
+              latestLandmarksRef.current = points;
               const blend = output.faceBlendshapes?.[0]?.categories || [];
               const scoreOf = (name: string) => blend.find((item) => item.categoryName === name)?.score || 0;
               const smile = (scoreOf("mouthSmileLeft") + scoreOf("mouthSmileRight")) / 2;
               const blink = (scoreOf("eyeBlinkLeft") + scoreOf("eyeBlinkRight")) / 2;
               const jaw = scoreOf("jawOpen");
-              setExpression(smile > .4 ? "УЛЫБКА" : blink > .5 ? "МОРГАНИЕ" : jaw > .35 ? "РОТ ОТКРЫТ" : "НЕЙТРАЛЬНО");
               const eyeMid = (face[33].x + face[263].x) / 2;
               const noseOffset = (face[1].x - eyeMid) / Math.max(.01, Math.abs(face[263].x - face[33].x));
               const estimate = Math.max(-90, Math.min(90, noseOffset * 110));
-              setYaw(estimate);
-              setQuality(Math.round(Math.max(0, Math.min(100, 100 - Math.abs(estimate) * .45))));
-            } else { setFaceFound(false); setLandmarks(null); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); }
+              if (now - lastUiUpdateAt.current >= 200) {
+                lastUiUpdateAt.current = now;
+                setFaceFound(true);
+                setLandmarks(points);
+                setYaw(estimate);
+                setQuality(Math.round(Math.max(0, Math.min(100, 100 - Math.abs(estimate) * .45))));
+                setExpression(smile > .4 ? "УЛЫБКА" : blink > .5 ? "МОРГАНИЕ" : jaw > .35 ? "РОТ ОТКРЫТ" : "НЕЙТРАЛЬНО");
+              }
+            } else if (now - lastUiUpdateAt.current >= 200) {
+              lastUiUpdateAt.current = now;
+              latestLandmarksRef.current = null;
+              setFaceFound(false);
+              setLandmarks(null);
+              setYaw(0);
+              setQuality(0);
+              setExpression("ЛИЦО НЕ НАЙДЕНО");
+            }
           }
           rafRef.current = requestAnimationFrame(tick);
         };
@@ -140,14 +168,31 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const mean = sum / Math.max(1, count), deviation = Math.sqrt(Math.max(0, sumSq / Math.max(1, count) - mean*mean));
     const lightScore = mean > 55 && mean < 210 ? 100 : Math.max(15, 100 - Math.abs(mean - 130));
     const contrastScore = Math.min(100, deviation * 1.8);
-    const score = Math.round(lightScore * .65 + contrastScore * .35);
-    const eyeDistance = Math.max(.001, Math.hypot(landmarks![33].x - landmarks![263].x, landmarks![33].y - landmarks![263].y));
+
+    const eyeDistance = Math.max(.001, Math.hypot(captureLandmarks[33].x - captureLandmarks[263].x, captureLandmarks[33].y - captureLandmarks[263].y));
     const origin = landmarks![1];
     const template = landmarks!.map((point) => [
       Number(((point.x - origin.x) / eyeDistance).toFixed(5)),
       Number(((point.y - origin.y) / eyeDistance).toFixed(5)),
       Number((((point.z ?? 0) - (origin.z ?? 0)) / eyeDistance).toFixed(5)),
     ]);
+    const faceWidth = right - left;
+    const faceHeight = bottom - top;
+    const sizeScore = Math.max(0, Math.min(100, (faceWidth / width) * 320));
+    let edgeTotal = 0, edgeCount = 0;
+    const cropWidth = Math.max(1, right - left);
+    for (let y = 0; y < Math.max(1, bottom - top); y += 4) {
+      for (let x = 4; x < cropWidth; x += 4) {
+        const index = (y * cropWidth + x) * 4;
+        const previous = index - 16;
+        const currentLuma = data[index] * .299 + data[index + 1] * .587 + data[index + 2] * .114;
+        const previousLuma = data[previous] * .299 + data[previous + 1] * .587 + data[previous + 2] * .114;
+        edgeTotal += Math.abs(currentLuma - previousLuma);
+        edgeCount++;
+      }
+    }
+    const sharpnessScore = Math.min(100, (edgeTotal / Math.max(1, edgeCount)) * 1.8);
+    const score = Math.round(lightScore * .35 + contrastScore * .25 + sharpnessScore * .25 + sizeScore * .15);
     const shot: Shot = { dataUrl: canvas.toDataURL("image/jpeg", .9), quality: score, label: stage === "front" ? "Анфас" : "Профиль", landmarks: template };
     if (stage === "front") { setShots((s) => ({ ...s, front: shot })); setStage("profile"); }
     else { setShots((s) => ({ ...s, profile: shot })); setStage("review"); }
@@ -219,27 +264,26 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
       const frames: string[] = [];
-      // Three short capture bursts (12 frames each) make blink timing less
-      // dependent on one button press. Ask for one natural blink in each burst.
-      const burstCount = 3;
-      const framesPerBurst = 12;
-      await wait(250);
-      for (let burst = 0; burst < burstCount; burst++) {
-        for (let i = 0; i < framesPerBurst; i++) {
-          const video = videoRef.current;
-          if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
-          const frameCanvas = document.createElement("canvas");
-          const scale = Math.min(1, 640 / video.videoWidth);
-          frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-          frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-          const ctx = frameCanvas.getContext("2d");
-          if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
-          ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
-          frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
-          setCaptureProgress(Math.round((frames.length / (burstCount * framesPerBurst)) * 100));
-          await wait(90);
-        }
-        if (burst < burstCount - 1) await wait(180);
+      // Fewer, well-spaced frames preserve the action sequence while reducing
+      // synchronous JPEG encoding and server-side inference time.
+      const frameCount = action === "blink" ? 22 : 16;
+      const video = videoRef.current;
+      if (!video || video.readyState < 2 || !video.videoWidth) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
+      const frameCanvas = challengeCanvasRef.current || document.createElement("canvas");
+      challengeCanvasRef.current = frameCanvas;
+      const scale = Math.min(1, 640 / video.videoWidth);
+      frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+      frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+      const ctx = frameCanvas.getContext("2d", { alpha: false });
+      if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
+      await wait(120);
+      for (let i = 0; i < frameCount; i++) {
+        const currentVideo = videoRef.current;
+        if (!currentVideo || currentVideo.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
+        ctx.drawImage(currentVideo, 0, 0, frameCanvas.width, frameCanvas.height);
+        frames.push(frameCanvas.toDataURL("image/jpeg", 0.64));
+        if (i % 2 === 0 || i === frameCount - 1) setCaptureProgress(Math.round(((i + 1) / frameCount) * 100));
+        await wait(100);
       }
       const nextEvidence = [...challengeEvidence, { action, frames }];
       setChallengeEvidence(nextEvidence);
