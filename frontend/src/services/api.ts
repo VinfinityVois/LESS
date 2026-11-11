@@ -267,7 +267,7 @@ export async function verifyLiveness(body: { user_id: number; challenge_id: stri
   const { data } = await api.post("/api/biometrics/liveness/verify", body);
   return data as { verified: boolean; proof_token: string; assurance: string; warning: string };
 }
-export async function faceEnroll(userId: number, body: { front_landmarks: number[][]; profile_landmarks: number[][]; front_photo: string; profile_photo: string; liveness_proof: string }) {
+export async function faceEnroll(userId: number, body: { front_landmarks: number[][]; profile_landmarks: number[][]; front_photo: string; profile_photo: string; liveness_proof: string; glasses?: "with" | "without" | "unknown"; mask?: "with" | "without" | "unknown"; face_shape?: string }) {
   const { data } = await api.post(`/api/users/${userId}/face-enroll`, body);
   return data;
 }
