@@ -29,10 +29,10 @@ class Settings(BaseSettings):
 
     # Camera
     CAMERA_INDEX: int = 0
-    CAMERA_WIDTH: int = 640
-    CAMERA_HEIGHT: int = 480
-    CAMERA_FPS: int = 15
-    JPEG_QUALITY: int = 75
+    CAMERA_WIDTH: int = 1280
+    CAMERA_HEIGHT: int = 720
+    CAMERA_FPS: int = 30
+    JPEG_QUALITY: int = 88
 
     # Serial / Arduino
     SERIAL_PORT: str = "COM3"          # Windows: COM3, Linux: /dev/ttyUSB0
