@@ -586,14 +586,14 @@ class DBService:
 
     def archive_previous_days(self) -> int:
         """Move completed UTC days to an archive table without discarding history."""
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = datetime.now().date().isoformat()
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
             conn.execute(
                 """INSERT OR IGNORE INTO access_log_archive
                    (id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at,archived_at)
                    SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at,?
-                   FROM access_logs WHERE substr(created_at,1,10) < ?""",
+                   FROM access_logs WHERE date(created_at,'localtime') < ?""",
                 (now, today),
             )
             archived = conn.execute("SELECT COUNT(*) AS n FROM access_logs WHERE substr(created_at,1,10) < ?", (today,)).fetchone()["n"]
@@ -604,11 +604,12 @@ class DBService:
         self.archive_previous_days()
         with self._get_conn() as conn:
             rows = conn.execute(
-                """SELECT * FROM (
+                """SELECT l.*,u.name AS user_name FROM (
                      SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs
                      UNION ALL
                      SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_log_archive
-                   ) ORDER BY created_at DESC,id DESC LIMIT ?""", (limit,)
+                   ) l LEFT JOIN users u ON u.id=l.user_id
+                   ORDER BY l.created_at DESC,l.id DESC LIMIT ?""", (limit,)
             ).fetchall()
             return [dict(row) for row in rows]
 
@@ -616,13 +617,13 @@ class DBService:
         self.archive_previous_days()
         with self._get_conn() as conn:
             rows = conn.execute(
-                """SELECT substr(created_at,1,10) AS day, COUNT(*) AS events,
+                """SELECT date(created_at,'localtime') AS day, COUNT(*) AS events,
                           SUM(CASE WHEN event_type='granted' THEN 1 ELSE 0 END) AS granted,
                           SUM(CASE WHEN event_type NOT IN ('granted','simulated') THEN 1 ELSE 0 END) AS denied
                    FROM (
                      SELECT created_at,event_type FROM access_logs
                      UNION ALL SELECT created_at,event_type FROM access_log_archive
-                   ) GROUP BY substr(created_at,1,10) ORDER BY day DESC"""
+                   ) GROUP BY date(created_at,'localtime') ORDER BY day DESC"""
             ).fetchall()
             return [dict(row) for row in rows]
 
@@ -634,7 +635,7 @@ class DBService:
                      SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_logs
                      UNION ALL SELECT id,nfc_uid,user_id,event_type,factor_used,reason,direction,door_id,created_at FROM access_log_archive
                    ) l LEFT JOIN users u ON u.id=l.user_id
-                   WHERE substr(l.created_at,1,10)=? ORDER BY l.created_at DESC,l.id DESC""", (day,)
+                   WHERE date(l.created_at,'localtime')=? ORDER BY l.created_at DESC,l.id DESC""", (day,)
             ).fetchall()
             return [dict(row) for row in rows]
 
