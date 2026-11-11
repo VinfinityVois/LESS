@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Camera, CheckCircle2, Fingerprint, Play, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import {
-  createLivenessChallenge, getPadEvaluationReport, listUsers, recordPadTrial, verifyLiveness,
+  createLivenessChallenge, getPadEvaluationReport, getFingerprintReaderStatus, listUsers, recordPadTrial, verifyLiveness,
   type User,
 } from "../services/api";
 
@@ -46,6 +46,7 @@ export default function BiometricLabPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [report, setReport] = useState<PadReport | null>(null);
+  const [fingerprintStatus, setFingerprintStatus] = useState<{ available: boolean; device_id?: string | null; vendor?: string | null; message: string } | null>(null);
 
   useEffect(() => {
     void listUsers(true).then((items) => {
@@ -54,6 +55,7 @@ export default function BiometricLabPage() {
       if (active.length) setUserId(String(active[0].id));
     }).catch(() => setError("Не удалось загрузить список сотрудников."));
     void refreshReport();
+    void getFingerprintReaderStatus().then(setFingerprintStatus).catch(() => setFingerprintStatus({ available: false, message: "Не удалось проверить сканер." }));
     return () => streamRef.current?.getTracks().forEach((track) => track.stop());
   }, []);
 
@@ -266,6 +268,7 @@ export default function BiometricLabPage() {
             {summary && <p className="pad-report-warning">{summary.warning}</p>}
           </div>
           <div className="pad-lab-note"><AlertTriangle size={15} /><span>PAD-метрики отражают только записанные испытания. Не используйте малую выборку как доказательство устойчивости или сертификации.</span></div>
+          <div className="pad-fingerprint-status"><div><Fingerprint size={15} /><span>FINGERPRINT READER</span><b className={fingerprintStatus?.available ? "is-ready" : "is-muted"}>{fingerprintStatus?.available ? "CONNECTED" : "NOT CONFIGURED"}</b></div><p>{fingerprintStatus?.message || "Проверка статуса…"}</p></div>
           <div className="pad-lab-note"><Fingerprint size={15} /><span>Выбранный субъект: {currentUser?.name || currentUser?.nfc_uid || "не выбран"}. В таблицу испытаний идентификатор субъекта не записывается.</span></div>
         </aside>
       </div>
