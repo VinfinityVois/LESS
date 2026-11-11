@@ -850,9 +850,9 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
     from app.services.face_recognition_service import face_recognition_service as face_engine
     ranked = []
     for item in db_service.list_face_vectors():
-        scores = [face_engine.cosine_similarity(observed["embedding"], item["front_vector"])]
+        scores = [face_recognition_service.cosine_similarity(observed["embedding"], item["front_vector"])]
         if item["profile_vector"]:
-            scores.append(face_engine.cosine_similarity(observed["embedding"], item["profile_vector"]))
+            scores.append(face_recognition_service.cosine_similarity(observed["embedding"], item["profile_vector"]))
         ranked.append({**item, "score": max(scores)})
     ranked.sort(key=lambda item: item["score"], reverse=True)
     best = ranked[0] if ranked else None
