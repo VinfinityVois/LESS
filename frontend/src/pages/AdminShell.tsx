@@ -108,7 +108,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     (groups[day] ||= []).push(pass);
     return groups;
   }, {});
-  const visibleNav = NAV.filter((item) => (item.id !== "admins" || admin.role === "superadmin") && (item.id !== "biometrics" || admin.role !== "security"));
+  const visibleNav = NAV.filter((item) => (item.id !== "admins" || admin.role === "superadmin") && (item.id !== "biometrics" || admin.role !== "security") && (item.id !== "ai" || admin.role !== "security"));
   const grouped = visibleNav.reduce<Record<string, typeof NAV>>((acc, item) => {
     (acc[item.group] ||= []).push(item);
     return acc;
