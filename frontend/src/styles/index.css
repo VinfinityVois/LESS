@@ -802,3 +802,8 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .guest-pass-card--archived{border-color:rgba(130,150,158,.14);background:linear-gradient(145deg,#111b22,#0d151b);opacity:.88}
 .guest-pass-card--archived .guest-pass-code{filter:grayscale(1)}
 .guest-pass-grid--archive{padding-bottom:28px}
+
+
+.guest-archive-list{display:grid;gap:18px}
+.guest-archive-day>header{display:flex;align-items:center;justify-content:space-between;margin:4px 2px 9px;padding-bottom:8px;border-bottom:1px solid rgba(130,166,173,.14);color:#c6d6d6;font:600 10px var(--mono)}
+.guest-archive-day>header span{color:#70858a;font-size:8px;font-weight:400}
