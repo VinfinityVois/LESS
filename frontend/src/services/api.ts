@@ -385,7 +385,7 @@ export async function recordPadTrial(body: { trial_class: "bona_fide" | "attack"
 export async function getPadEvaluationReport() {
   const { data } = await api.get<{ status: string; report?: {
     counts: { total: number; bona_fide: number; attacks: number };
-    apcer: number; bpcer: number; acer: number;
+    apcer: number; apcer_wilson_95: [number, number]; bpcer: number; bpcer_wilson_95: [number, number]; acer: number;
     attack_species: Record<string, { presentations: number; false_accepts: number; apcer: number }>;
     by_condition: Record<string, { trials: number; bona_fide: number; attacks: number; apcer: number | null; bpcer: number | null }>;
     by_camera: Record<string, { trials: number; bona_fide: number; attacks: number; apcer: number | null; bpcer: number | null }>;
