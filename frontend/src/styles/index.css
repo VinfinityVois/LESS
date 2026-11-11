@@ -777,3 +777,28 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .users-list-card,.users-form-card,.users-detail-card,.users-history-card,.surface-panel,.diagnostic-card,.incidents-panel{border-color:rgba(130,166,173,.17);box-shadow:0 18px 48px rgba(0,0,0,.17),inset 0 1px rgba(255,255,255,.018)}
 button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid rgba(97,216,208,.72);outline-offset:2px}
 @media(max-width:900px){.workspace-content:before{inset:0}}
+
+
+/* PAD laboratory: keep every panel reachable on short screens and small laptops */
+.pad-lab{
+  max-height:calc(100dvh - 142px);
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  padding:0 8px 26px 0;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(97,216,208,.32) rgba(255,255,255,.025);
+}
+.pad-lab::-webkit-scrollbar{width:8px}
+.pad-lab::-webkit-scrollbar-track{background:rgba(255,255,255,.025);border-radius:8px}
+.pad-lab::-webkit-scrollbar-thumb{background:rgba(97,216,208,.28);border:2px solid transparent;background-clip:padding-box;border-radius:8px}
+.pad-lab-grid{padding-bottom:22px}
+@media(max-width:900px){.pad-lab{max-height:calc(100dvh - 126px);padding-right:3px}}
+@media(max-height:760px){.pad-lab{max-height:calc(100dvh - 116px)}.pad-lab .pad-video-frame{min-height:180px;max-height:340px}}
+.guest-archive-toolbar{display:flex;gap:8px;margin:-7px 0 16px}
+.guest-countdown{color:#8de2d8!important;font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:650!important}
+.guest-countdown.is-expired{color:#e7a17f!important}
+.guest-pass-card--archived{border-color:rgba(130,150,158,.14);background:linear-gradient(145deg,#111b22,#0d151b);opacity:.88}
+.guest-pass-card--archived .guest-pass-code{filter:grayscale(1)}
+.guest-pass-grid--archive{padding-bottom:28px}
