@@ -138,6 +138,7 @@ export interface User {
   profile_photo_data_url?: string | null;
   is_active: number;
   face_enrolled?: number;
+  face_appearance?: { glasses: "with" | "without" | "unknown"; mask: "with" | "without" | "unknown"; face_shape: string; landmark_model: string; landmark_regions: string[]; observation_source: string } | null;
   created_at: string;
   updated_at?: string;
   deleted_at?: string | null;
