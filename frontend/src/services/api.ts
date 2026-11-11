@@ -189,7 +189,7 @@ export async function exportLogs(day?: string) {
   return data;
 }
 export async function recognizeMonitoringFace(frame: string) {
-  const { data } = await api.post<{ status: "identified" | "unknown" | "ambiguous"; similarity?: number | null; subject?: User | null; note?: string }>("/api/biometrics/recognize", { frame }, { timeout: 12000 });
+  const { data } = await api.post<{ status: "identified" | "unknown" | "ambiguous"; similarity?: number | null; subject?: { id: number; name: string; position?: string; photo_data_url?: string | null } | null; note?: string }>("/api/biometrics/recognize", { frame }, { timeout: 12000 });
   return data;
 }
 
