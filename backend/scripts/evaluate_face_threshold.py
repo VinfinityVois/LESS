@@ -1,6 +1,6 @@
 """Evaluate an SFace score CSV without loading or storing face images.
 
-CSV columns: label (genuine|impostor), similarity (0..1).
+CSV columns: label (genuine|impostor), similarity (-1..1).
 Example: python scripts/evaluate_face_threshold.py scores.csv --target-far 0.001
 """
 from __future__ import annotations
