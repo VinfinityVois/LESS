@@ -369,7 +369,7 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
     consent_purpose = "Полевое испытание PAD" if body.purpose == "pad_testing" else "Регистрация биометрического шаблона"
     db_service.record_biometric_consent(body.user_id, request.state.admin["id"], purpose=consent_purpose)
     admin_auth_service.audit(request.state.admin["id"], "biometric.consent_recorded", str(body.user_id), "Оператор подтвердил наличие согласия субъекта")
-    return liveness_service.create(request.state.admin["id"], body.user_id)
+    return liveness_service.create(request.state.admin["id"], body.user_id, purpose=body.purpose)
 
 
 @app.post("/api/biometrics/liveness/evaluation-trials")
