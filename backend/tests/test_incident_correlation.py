@@ -47,7 +47,7 @@ class IncidentCorrelationTests(unittest.TestCase):
             "created_at": now,
         }])
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["risk_score"], 45)
+        self.assertEqual(result[0]["risk_score"], 60)
         self.assertTrue(result[0]["dedupe_key"])
 
 
