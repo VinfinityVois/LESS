@@ -79,7 +79,7 @@ export default function LivePage({ status }: { status: SystemStatus | null }) {
           if (subjectStageRef.current === "identified") setSubjectStage("idle");
         }
       } catch (error: any) {
-        if (error?.response?.status === 422 && subjectStageRef.current === "identified") {
+        if (error?.response?.status === 422 && (subjectStageRef.current === "identified" || subjectStageRef.current === "idle")) {
           setCurrentSubject(null);
           setIdentitySimilarity(null);
           setFaceIdentityStatus("searching");
