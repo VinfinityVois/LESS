@@ -847,7 +847,6 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
         admin_auth_service.audit(admin_id, "access.face_not_detected", str(event_id), str(exc))
         raise HTTPException(status_code=422, detail={"code": "face_not_detected", "message": "Не удалось выделить ровно одно лицо в кадре. Проход запрещён."}) from exc
 
-    from app.services.face_recognition_service import face_recognition_service as face_engine
     ranked = []
     for item in db_service.list_face_vectors():
         scores = [face_recognition_service.cosine_similarity(observed["embedding"], item["front_vector"])]
@@ -857,12 +856,12 @@ async def access_check_face(body: FaceAccessVerifyRequest, request: Request):
     ranked.sort(key=lambda item: item["score"], reverse=True)
     best = ranked[0] if ranked else None
     second = ranked[1] if len(ranked) > 1 else None
-    threshold = face_engine.MATCH_THRESHOLD
+    threshold = face_recognition_service.MATCH_THRESHOLD
     margin = best["score"] - second["score"] if best and second else 1.0
     if not best or best["score"] < threshold:
         decision_code, decision_message = "face_unknown", "Лицо не найдено среди зарегистрированных сотрудников."
         matched = None
-    elif margin < face_engine.AMBIGUITY_MARGIN:
+    elif margin < face_recognition_service.AMBIGUITY_MARGIN:
         decision_code, decision_message = "face_ambiguous", "Совпадение неоднозначно: несколько профилей имеют близкую оценку."
         matched = None
     elif best["user_id"] != subject["id"]:
