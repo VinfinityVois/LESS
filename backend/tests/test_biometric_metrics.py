@@ -33,6 +33,18 @@ class BiometricMetricsTests(unittest.TestCase):
         self.assertIn("false_accept_rate", report["roc_curve"][0])
         self.assertIn("true_accept_rate", report["roc_curve"][0])
 
+
+    def test_roc_contains_origin_even_when_cosine_scores_equal_one(self):
+        report = calibrate_threshold(
+            genuine_scores=[1.0, 1.0],
+            impostor_scores=[1.0, 1.0],
+            target_far=0.0,
+        )
+        self.assertAlmostEqual(report["roc_auc"], 0.5)
+        self.assertEqual(report["roc_curve"][0]["false_accept_rate"], 0.0)
+        self.assertEqual(report["roc_curve"][0]["true_accept_rate"], 0.0)
+        self.assertIsNone(report["recommended"])
+
     def test_calibration_respects_target_far_and_does_not_change_runtime(self):
         report = calibrate_threshold(
             genuine_scores=[0.91, 0.88, 0.86, 0.82],
