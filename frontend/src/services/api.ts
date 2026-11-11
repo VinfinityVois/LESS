@@ -169,6 +169,30 @@ export async function getLogs(limit = 50) {
   return data as AccessLog[];
 }
 
+export interface LogDay { day: string; events: number; granted: number; denied: number }
+export interface DailyLogEvent extends AccessLog {
+  user_name?: string | null;
+  first_peak_at?: string | null;
+  repeat_peak_at?: string | null;
+  attempts?: number;
+}
+export async function getLogDays() {
+  const { data } = await api.get<{ days: LogDay[] }>("/api/logs/days");
+  return data.days;
+}
+export async function getLogDay(day: string) {
+  const { data } = await api.get<{ day: string; events: DailyLogEvent[]; raw_events: DailyLogEvent[] }>(`/api/logs/day/${day}`);
+  return data;
+}
+export async function exportLogs(day?: string) {
+  const { data } = await api.get<Blob>("/api/logs/export", { params: day ? { day } : {}, responseType: "blob" });
+  return data;
+}
+export async function recognizeMonitoringFace(frame: string) {
+  const { data } = await api.post<{ status: "identified" | "unknown" | "ambiguous"; similarity?: number | null; subject?: User | null; note?: string }>("/api/biometrics/recognize", { frame }, { timeout: 12000 });
+  return data;
+}
+
 export async function getAlerts(limit = 20) {
   const { data } = await api.get("/api/alerts", { params: { limit } });
   return data;
