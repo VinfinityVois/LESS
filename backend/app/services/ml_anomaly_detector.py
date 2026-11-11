@@ -36,7 +36,7 @@ def _parse_time(value: Any) -> datetime | None:
 
 def _subject_key(row: dict) -> str | None:
     if row.get("user_id") is not None:
-        return f"user:{row['user_id']}"
+        return f"user-ref:{int(row['user_id'])}"
     uid = str(row.get("nfc_uid") or "").strip()
     return "card:" + hashlib.sha256(uid.encode("utf-8")).hexdigest()[:12] if uid else None
 
