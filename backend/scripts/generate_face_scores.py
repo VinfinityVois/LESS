@@ -82,6 +82,8 @@ def main() -> int:
     repository_root = Path(__file__).resolve().parents[2]
     dataset_root = args.dataset_root.resolve()
     output_path = args.output.resolve()
+    if output_path == args.manifest.resolve():
+        parser.error("Файл результатов не может перезаписывать manifest.")
     try:
         dataset_root.relative_to(repository_root)
         parser.error("Биометрический датасет должен храниться вне репозитория LESS.")
