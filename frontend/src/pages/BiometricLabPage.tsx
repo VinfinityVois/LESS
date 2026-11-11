@@ -33,6 +33,8 @@ export default function BiometricLabPage() {
   const [userId, setUserId] = useState("");
   const [trialClass, setTrialClass] = useState<TrialClass>("bona_fide");
   const [attackType, setAttackType] = useState("printed_photo");
+  const [testCondition, setTestCondition] = useState("");
+  const [cameraLabel, setCameraLabel] = useState("");
   const [consent, setConsent] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraBusy, setCameraBusy] = useState(false);
@@ -170,6 +172,8 @@ export default function BiometricLabPage() {
         attack_type: trialClass === "attack" ? attackType : "",
         accepted,
         failure_reason: failureReason,
+        test_condition: testCondition,
+        camera_label: cameraLabel,
       });
       setMessage(accepted
         ? "Система приняла предъявление как живого пользователя."
@@ -229,6 +233,8 @@ export default function BiometricLabPage() {
               <label>Тестовый субъект<select value={userId} onChange={(e) => setUserId(e.target.value)} disabled={!!challenge || busy}><option value="">Выберите сотрудника</option>{users.map((user) => <option key={user.id} value={user.id}>{user.name || user.nfc_uid} · {user.position || "Без должности"}</option>)}</select></label>
               <label>Тип предъявления<select value={trialClass} onChange={(e) => setTrialClass(e.target.value as TrialClass)} disabled={!!challenge || busy}><option value="bona_fide">Живой пользователь (bona fide)</option><option value="attack">Атака предъявления (attack)</option></select></label>
               {trialClass === "attack" && <label className="pad-attack-select">Сценарий атаки<select value={attackType} onChange={(e) => setAttackType(e.target.value)} disabled={!!challenge || busy}>{attackOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
+              <label>Условия испытания<input value={testCondition} onChange={(e) => setTestCondition(e.target.value)} disabled={!!challenge || busy} placeholder="Освещение, расстояние, угол…" /></label>
+              <label>Камера / устройство<input value={cameraLabel} onChange={(e) => setCameraLabel(e.target.value)} disabled={!!challenge || busy} placeholder="Модель камеры или веб-камера" /></label>
             </div>
             <label className="pad-consent"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} disabled={!!challenge || busy} /><span>Подтверждено согласие субъекта на участие в биометрическом испытании и обработку кадров в рамках текущей проверки.</span></label>
 
@@ -255,6 +261,8 @@ export default function BiometricLabPage() {
               <div><span>TRIALS</span><strong>{summary.counts.total}</strong><small>{summary.counts.bona_fide} live · {summary.counts.attacks} attacks</small></div>
             </div> : <div className="pad-no-data"><XCircle size={20} /><strong>Недостаточно данных</strong><span>{report?.message || "Для расчёта нужны успешные и атакующие предъявления."}</span></div>}
             {summary && <div className="pad-attack-breakdown"><span>ПО ТИПАМ АТАК</span>{Object.entries(summary.attack_species).map(([type, item]) => <div key={type}><strong>{attackOptions.find(([value]) => value === type)?.[1] || type}</strong><b>{(item.apcer * 100).toFixed(1)}%</b><small>{item.false_accepts}/{item.presentations}</small></div>)}</div>}
+            {summary && <div className="pad-attack-breakdown"><span>ПО УСЛОВИЯМ СЪЁМКИ</span>{Object.entries(summary.by_condition).map(([label, item]) => <div key={label}><strong>{label}</strong><b>{item.apcer === null ? "—" : (item.apcer * 100).toFixed(1) + "%"} / {item.bpcer === null ? "—" : (item.bpcer * 100).toFixed(1) + "%"}</b><small>{item.trials} тестов</small></div>)}</div>}
+            {summary && <div className="pad-attack-breakdown"><span>ПО КАМЕРАМ</span>{Object.entries(summary.by_camera).map(([label, item]) => <div key={label}><strong>{label}</strong><b>{item.apcer === null ? "—" : (item.apcer * 100).toFixed(1) + "%"} / {item.bpcer === null ? "—" : (item.bpcer * 100).toFixed(1) + "%"}</b><small>{item.trials} тестов</small></div>)}</div>}
             {summary && <p className="pad-report-warning">{summary.warning}</p>}
           </div>
           <div className="pad-lab-note"><AlertTriangle size={15} /><span>PAD-метрики отражают только записанные испытания. Не используйте малую выборку как доказательство устойчивости или сертификации.</span></div>
