@@ -413,7 +413,6 @@ class DBService:
     def list_guest_passes(self) -> List[Dict[str, Any]]:
         self.archive_expired_guest_passes()
         now = datetime.now(timezone.utc)
-        now_iso = now.isoformat()
         with self._get_conn() as conn:
             rows = conn.execute("SELECT * FROM guest_passes ORDER BY id DESC").fetchall()
         out = []
