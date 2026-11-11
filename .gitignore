@@ -25,6 +25,8 @@ build/
 *.key
 *.pem
 backend/data/*.db
+backend/data/*.db.*
+backend/data/*.sqlcipher
 backend/data/*.jsonl
 backend/data/keys/
 *.sqlite
