@@ -72,6 +72,15 @@ app.add_middleware(
 )
 
 
+class IncidentStatusRequest(BaseModel):
+    status: str = Field(pattern="^(open|resolved|dismissed)$")
+
+
+class IncidentAssistantRequest(BaseModel):
+    incident_id: int = Field(gt=0)
+    question: str = Field(default="", max_length=500)
+
+
 PUBLIC_AUTH_PATHS = {"/api/status", "/api/auth/bootstrap-status", "/api/auth/bootstrap", "/api/auth/login"}
 
 @app.middleware("http")
@@ -228,15 +237,6 @@ class AdminBootstrapRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=12, max_length=256)
-
-
-class IncidentStatusRequest(BaseModel):
-    status: str = Field(pattern="^(open|resolved|dismissed)$")
-
-
-class IncidentAssistantRequest(BaseModel):
-    incident_id: int = Field(gt=0)
-    question: str = Field(default="", max_length=500)
 
 
 class AdminLoginRequest(BaseModel):
