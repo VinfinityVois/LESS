@@ -237,7 +237,8 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
 
 
   const restartLiveness = async () => {
-    setChallengeBusy(false);
+    if (challengeBusy) return;
+    setChallengeBusy(true);
     setCameraError("");
     setChallengeEvidence([]);
     setChallengeIndex(0);
@@ -255,7 +256,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       setCameraError(e?.response?.data?.detail || "Не удалось получить новый liveness challenge.");
       setErrorContext("liveness");
       setStage("error");
-    }
+    } finally { setChallengeBusy(false); }
   };
 
   const beginLiveness = async () => {
