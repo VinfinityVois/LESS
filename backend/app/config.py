@@ -50,6 +50,7 @@ class Settings(BaseSettings):
     AI_ML_LOOKBACK_DAYS: int = 30
     AI_ML_MIN_SUBJECTS: int = 12
     AI_ML_MIN_EVENTS_PER_SUBJECT: int = 3
+    FINGERPRINT_DEVICE_ID: str = ""
 
     # Optional local-only LLM assistant (disabled until a local runtime is installed)
     LOCAL_LLM_ENABLED: bool = False
