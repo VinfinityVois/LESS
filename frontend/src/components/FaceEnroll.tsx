@@ -283,21 +283,23 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     try {
       const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
       const frames: string[] = [];
-      // Three short capture bursts (12 frames each) make blink timing less
-      // dependent on one button press. Ask for one natural blink in each burst.
+      // Three short capture bursts (12 frames each). One reusable canvas avoids
+      // allocating 36 canvas/context objects during a single action.
       const burstCount = 3;
       const framesPerBurst = 12;
+      const firstVideo = videoRef.current;
+      if (!firstVideo || firstVideo.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
+      const frameCanvas = document.createElement("canvas");
+      const scale = Math.min(1, 640 / firstVideo.videoWidth);
+      frameCanvas.width = Math.max(1, Math.round(firstVideo.videoWidth * scale));
+      frameCanvas.height = Math.max(1, Math.round(firstVideo.videoHeight * scale));
+      const ctx = frameCanvas.getContext("2d");
+      if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
       await wait(250);
       for (let burst = 0; burst < burstCount; burst++) {
         for (let i = 0; i < framesPerBurst; i++) {
           const video = videoRef.current;
           if (!video || video.readyState < 2) throw new Error("Камера пока не готова. Попробуйте ещё раз.");
-          const frameCanvas = document.createElement("canvas");
-          const scale = Math.min(1, 640 / video.videoWidth);
-          frameCanvas.width = Math.max(1, Math.round(video.videoWidth * scale));
-          frameCanvas.height = Math.max(1, Math.round(video.videoHeight * scale));
-          const ctx = frameCanvas.getContext("2d");
-          if (!ctx) throw new Error("Не удалось подготовить кадр камеры.");
           ctx.drawImage(video, 0, 0, frameCanvas.width, frameCanvas.height);
           frames.push(frameCanvas.toDataURL("image/jpeg", 0.68));
           setCaptureProgress(Math.round((frames.length / (burstCount * framesPerBurst)) * 100));
@@ -338,7 +340,6 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const outline = landmarks?.length ? FACE_OVAL.map((index) => landmarks[index]).filter((p): p is {x:number;y:number;z:number} => p !== undefined).map((p) => `${p.x*1000},${p.y*1000}`).join(" ") : "";
   const shotsAcceptable = (shots.front?.quality ?? 0) >= 55 && (shots.profile?.quality ?? 0) >= 55;
   const overallLivenessProgress = challenge ? Math.round(((challengeIndex + captureProgress / 100) / challenge.actions.length) * 100) : 0;
-  const reset = () => { void restartLiveness(); };
   const retryCamera = () => {
     setCameraError("");
     setErrorContext("unknown");
