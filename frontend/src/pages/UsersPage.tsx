@@ -142,6 +142,7 @@ export default function UsersPage({ onEnroll, readOnly = false }: { onEnroll: (u
     <div className="users-detail-grid">
       <article className="users-info-card"><span>СТАТУС УЧЁТНОЙ ЗАПИСИ</span><strong>{selected.is_active ? "Доступ активен" : "Доступ заблокирован"}</strong></article>
       <article className="users-info-card"><span>БИОМЕТРИЧЕСКИЙ ПРОФИЛЬ</span><strong>{selected.face_enrolled ? "Шаблон зарегистрирован" : "Не зарегистрирован"}</strong></article>
+      {selected.face_appearance && <article className="users-info-card"><span>НАБЛЮДЕНИЯ БИОМЕТРИИ</span><strong>{selected.face_appearance.face_shape || "Форма не отмечена"} · {selected.face_appearance.glasses === "with" ? "Очки" : selected.face_appearance.glasses === "without" ? "Без очков" : "Очки не отмечены"} · {selected.face_appearance.mask === "with" ? "Маска" : selected.face_appearance.mask === "without" ? "Без маски" : "Маска не отмечена"}</strong><small>Зашифрованная геометрия лица · 478 контрольных точек</small></article>}
       <article className="users-info-card"><span><Clock3 size={13}/> ПОСЛЕДНИЙ ВХОД</span><strong>{fmt(selected.last_entry)}</strong></article>
       <article className="users-info-card"><span><Clock3 size={13}/> ПОСЛЕДНИЙ ВЫХОД</span><strong>{fmt(selected.last_exit)}</strong></article>
       <article className="users-info-card"><span><CalendarDays size={13}/> ДАТА РЕГИСТРАЦИИ</span><strong>{fmt(selected.created_at)}</strong></article>
