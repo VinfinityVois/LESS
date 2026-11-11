@@ -738,8 +738,8 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
  .face-modal:has(.liveness-card) .face-camera-stage,.face-modal:has(.face-analysis-grid) .face-camera-stage{grid-column:1;grid-row:3;width:auto;max-height:none;aspect-ratio:16/10;margin:0 0 12px 19px}
  .face-modal:has(.liveness-card) .liveness-card{grid-column:2;grid-row:3;align-self:stretch;margin:0 19px 12px 0;padding:18px;display:flex;flex-direction:column;justify-content:center}
  .face-modal:has(.face-analysis-grid) .face-analysis-grid,.face-modal:has(.face-analysis-grid) .face-guidance{grid-column:2;margin:0 19px 10px 0;padding:0}
- .face-modal:has(.face-analysis-grid) .face-analysis-grid{grid-row:3;align-content:end;grid-template-columns:1fr 1fr}
- .face-modal:has(.face-analysis-grid) .face-guidance{grid-row:4;align-self:start;padding:12px}
+ .face-modal:has(.face-analysis-grid) .face-analysis-grid{grid-row:4;align-content:end;grid-template-columns:1fr 1fr}
+ .face-modal:has(.face-analysis-grid) .face-guidance{grid-row:6;align-self:start;padding:12px}
  .face-modal:has(.face-analysis-grid) .face-modal-footer{grid-column:1/-1}
  .face-modal:has(.face-analysis-grid) .face-modal-footer{padding-top:4px}
 }
@@ -756,3 +756,10 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
  .users-row-actions button{min-width:0;padding:0 7px}
  .users-row-actions button span{font-size:8px}
 }
+
+.face-appearance-controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 19px 10px;padding:10px;border:1px solid rgba(97,216,208,.16);border-radius:9px;background:rgba(8,18,24,.75)}
+.face-appearance-controls label{display:grid;gap:6px;color:#789095;font:8px var(--mono);letter-spacing:.07em}
+.face-appearance-controls select{width:100%;min-width:0;height:34px;padding:0 8px;border:1px solid rgba(130,166,173,.22);border-radius:6px;background:#0a151b;color:#c9d9d8;font-size:10px}
+.face-appearance-controls small{grid-column:1/-1;color:#738b90;font-size:8px;line-height:1.45}
+@media(min-width:901px){.face-modal:has(.face-analysis-grid) .face-appearance-controls{grid-column:2;grid-row:5;margin:0 19px 10px 0}.face-modal:has(.face-analysis-grid) .face-guidance{grid-row:6;margin:0 19px 10px 0}}
+@media(max-width:900px){.face-appearance-controls{margin:0 12px 10px}}
