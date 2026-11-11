@@ -11,21 +11,23 @@ import LivePage from "./LivePage";
 import UsersPage from "./UsersPage";
 import LogsPage from "./LogsPage";
 import IncidentsPage from "./IncidentsPage";
+import BiometricLabPage from "./BiometricLabPage";
 import AdminAccountsPage from "./AdminAccountsPage";
 import FaceEnroll from "../components/FaceEnroll";
 
-type NavId = "live" | "logs" | "incidents" | "users" | "diagnostics" | "guests" | "admins";
+type NavId = "live" | "logs" | "incidents" | "biometrics" | "users" | "diagnostics" | "guests" | "admins";
 const NAV: { id: NavId; label: string; icon: typeof Video; group: string }[] = [
   { id: "live", label: "Мониторинг", icon: Video, group: "ОПЕРАТИВНЫЙ ПОСТ" },
   { id: "logs", label: "Журнал событий", icon: History, group: "ОПЕРАТИВНЫЙ ПОСТ" },
   { id: "incidents", label: "Инциденты", icon: AlertTriangle, group: "ОПЕРАТИВНЫЙ ПОСТ" },
+  { id: "biometrics", label: "Лаборатория биометрии", icon: Fingerprint, group: "АНАЛИТИКА" },
   { id: "users", label: "Сотрудники и доступ", icon: Users, group: "УПРАВЛЕНИЕ" },
   { id: "guests", label: "Гостевые пропуска", icon: BadgeCheck, group: "УПРАВЛЕНИЕ" },
   { id: "diagnostics", label: "Оборудование", icon: SlidersHorizontal, group: "СИСТЕМА" },
   { id: "admins", label: "Администраторы", icon: ShieldCheck, group: "АДМИНИСТРИРОВАНИЕ" },
 ];
 const pageTitles: Record<NavId, string> = {
-  live: "Пост охраны", logs: "Журнал событий", incidents: "Центр инцидентов",
+  live: "Пост охраны", logs: "Журнал событий", incidents: "Центр инцидентов", biometrics: "Лаборатория биометрии",
   users: "Управление доступом", diagnostics: "Состояние оборудования", guests: "Гостевые пропуска", admins: "Администраторы и роли",
 };
 function DeviceState({ icon: Icon, label, value, ok }: { icon: typeof Camera; label: string; value: string; ok: boolean }) {
@@ -73,7 +75,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const serialOk = status?.serial === "connected";
   const dbOk = status?.db === "ok";
   const aiOk = status?.ai === "ok";
-  const visibleNav = NAV.filter((item) => item.id !== "admins" || admin.role === "superadmin");
+  const visibleNav = NAV.filter((item) => (item.id !== "admins" || admin.role === "superadmin") && (item.id !== "biometrics" || admin.role !== "security"));
   const grouped = visibleNav.reduce<Record<string, typeof NAV>>((acc, item) => {
     (acc[item.group] ||= []).push(item);
     return acc;
@@ -140,6 +142,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
         {nav === "admins" && admin.role === "superadmin" && <AdminAccountsPage currentAdminId={admin.id} />}
         {nav === "guests" && <section className="content-section guest-page"><div className="page-heading"><div><span className="eyebrow">УПРАВЛЕНИЕ ДОСТУПОМ</span><h1>Гостевые пропуска</h1><p>Именные временные разрешения с привязкой к точке прохода и сроку действия.</p></div></div><div className="surface-panel guest-create-card"><div className="guest-create-fields"><label>Кому выдаётся<input value={guestName} onChange={(e)=>setGuestName(e.target.value)} placeholder="ФИО гостя / компания"/></label><label>Куда разрешён проход<select value={guestDoor} onChange={(e)=>setGuestDoor(e.target.value)}><option value="main">Главный вход</option><option value="server_room">Серверная</option></select></label><label>Срок действия<select value={guestHours} onChange={(e)=>setGuestHours(Number(e.target.value))}><option value={1}>1 час</option><option value={2}>2 часа</option><option value={4}>4 часа</option><option value={8}>8 часов</option><option value={24}>24 часа</option><option value={72}>72 часа</option></select></label></div><button className="button-primary" onClick={() => void makeGuestCode()} disabled={guestBusy}>{guestBusy ? "Создание…" : "Выдать гостевой пропуск"}<ChevronRight size={15}/></button>{guestMsg && <div className={`inline-result ${guestMsg.startsWith("Не удалось") ? "is-error" : ""}`} role="status">{guestMsg}</div>}</div><div className="guest-pass-grid">{guestPasses.map((pass)=><article className="guest-pass-card" key={pass.id}><div className="guest-pass-card__top"><span className="eyebrow">ВРЕМЕННЫЙ ДОПУСК · #{pass.id}</span><span className={"guest-pass-state " + (pass.active ? "is-active" : "is-inactive")}>{pass.status === "blocked" ? "ЗАБЛОКИРОВАН" : pass.status === "closed" ? "ЗАКРЫТ" : pass.active ? "АКТИВЕН" : "ИСТЁК / ИСЧЕРПАН"}</span></div><h2>{pass.label}</h2><div className="guest-pass-code">•••• {pass.code_prefix}</div><div className="guest-pass-meta"><span>ВЫДАН</span><b>{new Date(pass.created_at).toLocaleString("ru-RU")}</b><span>ДЕЙСТВУЕТ ДО</span><b>{new Date(pass.expires_at).toLocaleString("ru-RU")}</b><span>ТОЧКА ПРОХОДА</span><b>{pass.door_ids.map((door)=>door==="server_room"?"Серверная":"Главный вход").join(", ")}</b><span>ИСПОЛЬЗОВАНО</span><b>{pass.uses} / {pass.max_uses}</b></div><div className="guest-pass-actions"><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"close")}>Закрыть</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"reset")}>Обнулить</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"restore")}>Восстановить</button><button disabled={guestActionBusy===pass.id} onClick={()=>void runGuestAction(pass.id,"block")}>Заблокировать</button><button disabled={guestActionBusy===pass.id} onClick={()=>{setGuestDialogHours("2");setGuestDialog({id:pass.id,action:"extend"});}}>Продлить</button><button disabled={guestActionBusy===pass.id} onClick={()=>setGuestDialog({id:pass.id,action:"delete"})}>Удалить</button></div></article>)}{!guestPasses.length && <div className="guest-pass-empty"><BadgeCheck size={22}/><strong>Пока нет выданных пропусков</strong><span>Создайте гостевой пропуск — он появится отдельной карточкой с получателем, сроком и точкой прохода.</span></div>}</div></section>}
         {nav === "incidents" && <IncidentsPage canAnalyze={admin.role !== "security"} />}
+        {nav === "biometrics" && admin.role !== "security" && <BiometricLabPage />}
         {nav === "diagnostics" && <section className="content-section"><div className="page-heading"><div><span className="eyebrow">СИСТЕМНЫЙ КОНТРОЛЬ</span><h1>Состояние оборудования</h1><p>Сводка доступности локальных компонентов СКУД.</p></div></div><div className="diagnostic-grid">{diagnosticItems.map((item) => { const Icon = item.icon; return <div className="diagnostic-card" key={item.label}><div className="diagnostic-card__top"><span className="diagnostic-card__icon"><Icon size={18} /></span><span className={`diagnostic-pill ${item.ok ? "is-ok" : "is-wait"}`}>{item.ok ? "АКТИВЕН" : "ОЖИДАНИЕ"}</span></div><strong>{item.label}</strong><b>{item.value}</b><small>{item.detail}</small></div>; })}</div></section>}
       </main>
     </section>
