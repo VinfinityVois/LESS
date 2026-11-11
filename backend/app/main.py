@@ -29,6 +29,7 @@ from app.services.ml_anomaly_detector import ml_anomaly_detector
 from app.services.incident_correlation import incident_correlation_engine
 from app.services.fingerprint_service import fingerprint_service
 from app.services.local_ai_assistant import local_ai_assistant
+from app.services.pad_metrics import evaluate_pad_trials
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
     access_policy,
@@ -259,6 +260,7 @@ class AdminActiveRequest(BaseModel):
 class LivenessChallengeRequest(BaseModel):
     user_id: int = Field(gt=0)
     consent_confirmed: bool = False
+    purpose: str = Field(default="face_enrollment", pattern="^(face_enrollment|pad_testing)$")
 
 
 class LivenessActionEvidence(BaseModel):
@@ -271,6 +273,13 @@ class LivenessActionEvidence(BaseModel):
         if any(not isinstance(frame, str) or len(frame) > 2_100_000 for frame in frames):
             raise ValueError("Кадр проверки превышает допустимый размер.")
         return frames
+
+
+class PADTrialRequest(BaseModel):
+    trial_class: str = Field(pattern="^(bona_fide|attack)$")
+    attack_type: str = Field(default="", max_length=64)
+    accepted: bool
+    failure_reason: str = Field(default="", max_length=200)
 
 
 class LivenessVerifyRequest(BaseModel):
@@ -357,9 +366,37 @@ async def create_liveness_challenge(body: LivenessChallengeRequest, request: Req
     require_biometric_encryption_key()
     if not body.consent_confirmed:
         raise HTTPException(status_code=400, detail="Перед регистрацией необходимо подтвердить согласие субъекта на обработку биометрических данных.")
-    db_service.record_biometric_consent(body.user_id, request.state.admin["id"])
+    consent_purpose = "Полевое испытание PAD" if body.purpose == "pad_testing" else "Регистрация биометрического шаблона"
+    db_service.record_biometric_consent(body.user_id, request.state.admin["id"], purpose=consent_purpose)
     admin_auth_service.audit(request.state.admin["id"], "biometric.consent_recorded", str(body.user_id), "Оператор подтвердил наличие согласия субъекта")
     return liveness_service.create(request.state.admin["id"], body.user_id)
+
+
+@app.post("/api/biometrics/liveness/evaluation-trials")
+async def record_pad_evaluation_trial(body: PADTrialRequest):
+    if body.trial_class == "attack" and not body.attack_type.strip():
+        raise HTTPException(status_code=422, detail="Для испытания атаки укажите её тип.")
+    trial_id = db_service.record_pad_trial(
+        body.trial_class,
+        body.attack_type.strip(),
+        body.accepted,
+        body.failure_reason,
+    )
+    return {"id": trial_id, "recorded": True}
+
+
+@app.get("/api/biometrics/liveness/evaluation-report")
+async def get_pad_evaluation_report():
+    trials = db_service.get_pad_trials(limit=5000)
+    try:
+        report = evaluate_pad_trials(trials)
+        return {"status": "ok", "report": report}
+    except ValueError as exc:
+        return {
+            "status": "insufficient_data",
+            "counts": {"total": len(trials)},
+            "message": str(exc),
+        }
 
 
 @app.post("/api/biometrics/liveness/verify")
