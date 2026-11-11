@@ -1,4 +1,5 @@
 import unittest
+import hashlib
 from datetime import datetime, timedelta, timezone
 
 from app.services.incident_correlation import IncidentCorrelationEngine
@@ -23,15 +24,16 @@ class IncidentCorrelationTests(unittest.TestCase):
         result = IncidentCorrelationEngine().build_incidents(
             logs,
             {"anomalies": [{
-                "subject_ref": "card:somehash",
+                "subject_ref": "card:" + hashlib.sha256(b"RAW-UID-001").hexdigest()[:12],
                 "relative_anomaly_score": 90,
                 "model": "IsolationForest",
             }]},
         )
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["risk_score"], 35)
-        self.assertEqual(result[0]["severity"], "medium")
+        self.assertEqual(result[0]["risk_score"], 53)
+        self.assertEqual(result[0]["severity"], "high")
         self.assertIn("repeated_denials", str(result[0]["evidence"]["factors"]))
+        self.assertIn("ml_anomaly", str(result[0]["evidence"]["factors"]))
         self.assertNotIn("RAW-UID-001", str(result))
 
     def test_controller_alarm_has_high_priority_and_deduplication_key(self):
