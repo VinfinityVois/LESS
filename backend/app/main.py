@@ -4,12 +4,13 @@ LESS Backend — точка входа
 """
 
 from contextlib import asynccontextmanager
+from datetime import datetime
 import asyncio
 import json
 import hashlib
 import string
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from typing import Optional
@@ -138,7 +139,50 @@ async def status():
 
 @app.get("/api/logs")
 async def get_logs(limit: int = Query(50, ge=1, le=500)):
+    db_service.archive_previous_days()
     return db_service.get_recent_logs(limit=limit)
+
+
+@app.get("/api/logs/days")
+async def get_log_days():
+    return {"days": db_service.get_log_days()}
+
+
+@app.get("/api/logs/day/{day}")
+async def get_log_day(day: str):
+    try:
+        parsed = datetime.strptime(day, "%Y-%m-%d").date()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="Дата должна быть в формате YYYY-MM-DD.") from exc
+    if parsed.isoformat() != day:
+        raise HTTPException(status_code=422, detail="Некорректная дата.")
+    return {"day": day, "events": db_service.get_daily_log_peaks(day), "raw_events": db_service.get_logs_for_date(day)}
+
+
+@app.get("/api/logs/export")
+async def export_logs(day: Optional[str] = Query(None)):
+    import csv
+    import io
+    if day:
+        try:
+            parsed = datetime.strptime(day, "%Y-%m-%d").date()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Дата должна быть в формате YYYY-MM-DD.") from exc
+        if parsed.isoformat() != day:
+            raise HTTPException(status_code=422, detail="Некорректная дата.")
+        rows = db_service.get_logs_for_date(day)
+        filename = f"less-events-{day}.csv"
+    else:
+        db_service.archive_previous_days()
+        rows = db_service.get_recent_logs(limit=100000)
+        filename = "less-events-all.csv"
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";", lineterminator="\\n")
+    writer.writerow(["id","date_time","method","uid","person","status","reason","door","direction"])
+    for row in rows:
+        writer.writerow([row.get("id"),row.get("created_at"),row.get("factor_used"),row.get("nfc_uid"),row.get("user_name") or row.get("user_id") or "Не определён",row.get("event_type"),row.get("reason"),row.get("door_id"),row.get("direction")])
+    return Response(content="\\ufeff"+output.getvalue(), media_type="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
 @app.get("/api/alerts")
@@ -270,6 +314,40 @@ class AdminCreateRequest(BaseModel):
 
 class AdminActiveRequest(BaseModel):
     is_active: bool
+
+
+class FaceRecognitionRequest(BaseModel):
+    frame: str = Field(min_length=100, max_length=2_100_000)
+
+
+@app.post("/api/biometrics/recognize")
+async def recognize_face_in_monitoring(body: FaceRecognitionRequest):
+    """Identify a visible employee independently of credentials; never grants access."""
+    try:
+        observed = await asyncio.to_thread(face_recognition_service.embedding_from_image, body.frame)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail="Модуль распознавания лица недоступен.") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": str(exc), "message": "В кадре должно быть ровно одно достаточно крупное лицо."}) from exc
+    ranked = []
+    for item in db_service.list_face_vectors():
+        scores = [face_recognition_service.cosine_similarity(observed["embedding"], item["front_vector"])]
+        if item.get("profile_vector"):
+            scores.append(face_recognition_service.cosine_similarity(observed["embedding"], item["profile_vector"]))
+        ranked.append({**item, "score": max(scores)})
+    ranked.sort(key=lambda item: item["score"], reverse=True)
+    best = ranked[0] if ranked else None
+    second = ranked[1] if len(ranked) > 1 else None
+    if not best or best["score"] < face_recognition_service.MATCH_THRESHOLD:
+        return {"status": "unknown", "subject": None, "similarity": round(best["score"] * 100, 1) if best else None}
+    if second and best["score"] - second["score"] < face_recognition_service.AMBIGUITY_MARGIN:
+        return {"status": "ambiguous", "subject": None, "similarity": round(best["score"] * 100, 1)}
+    return {
+        "status": "identified",
+        "similarity": round(best["score"] * 100, 1),
+        "subject": {"id": best["user_id"], "name": best["name"], "position": best["position"], "photo_data_url": best.get("photo_data_url")},
+        "note": "Идентификация лица не является разрешением на проход.",
+    }
 
 
 class LivenessChallengeRequest(BaseModel):
