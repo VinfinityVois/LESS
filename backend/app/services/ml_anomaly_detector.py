@@ -11,8 +11,10 @@ from datetime import datetime, timezone
 from statistics import median
 from typing import Any
 
-MIN_SUBJECTS = 12
-MIN_EVENTS_PER_SUBJECT = 3
+from app.config import settings
+
+MIN_SUBJECTS = settings.AI_ML_MIN_SUBJECTS
+MIN_EVENTS_PER_SUBJECT = settings.AI_ML_MIN_EVENTS_PER_SUBJECT
 FEATURE_NAMES = (
     "event_count",
     "denied_ratio",
@@ -64,13 +66,18 @@ def _features(rows: list[dict]) -> list[float]:
 
 
 class MLAnomalyDetector:
-    def __init__(self, min_subjects: int = MIN_SUBJECTS, min_events: int = MIN_EVENTS_PER_SUBJECT):
+    def __init__(self, min_subjects: int = MIN_SUBJECTS, min_events: int = MIN_EVENTS_PER_SUBJECT, lookback_days: int = settings.AI_ML_LOOKBACK_DAYS):
         self.min_subjects = min_subjects
         self.min_events = min_events
+        self.lookback_days = max(1, lookback_days)
 
     def analyze(self, logs: list[dict]) -> dict:
         grouped: dict[str, list[dict]] = defaultdict(list)
+        cutoff = datetime.now(timezone.utc).timestamp() - self.lookback_days * 86400
         for row in logs:
+            timestamp = _parse_time(row.get("created_at"))
+            if not timestamp or timestamp.timestamp() < cutoff:
+                continue
             key = _subject_key(row)
             if key:
                 grouped[key].append(row)
@@ -87,6 +94,7 @@ class MLAnomalyDetector:
             }
 
         try:
+            import sklearn
             from sklearn.ensemble import IsolationForest
         except ImportError:
             return {
@@ -135,7 +143,7 @@ class MLAnomalyDetector:
                 "subject_ref": key,
                 "relative_anomaly_score": relative_risk,
                 "model": "IsolationForest",
-                "model_version": "sklearn-runtime",
+                "model_version": sklearn.__version__,
                 "event_ids": [int(row["id"]) for row in rows if row.get("id") is not None],
                 "signals": deviations[:3],
                 "sample_size": len(rows),
@@ -145,7 +153,7 @@ class MLAnomalyDetector:
         return {
             "status": "ok",
             "model": "IsolationForest",
-            "model_version": "sklearn-runtime",
+            "model_version": sklearn.__version__,
             "subjects_observed": len(cohorts),
             "anomaly_count": len(anomalies),
             "anomalies": anomalies,
