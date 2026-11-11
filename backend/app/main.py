@@ -89,7 +89,7 @@ async def protect_control_plane(request: Request, call_next):
             or path.startswith("/api/biometrics")
             or path.startswith("/api/camera")
             or (path.startswith("/api/serial") and request.method != "GET")
-            or path.startswith("/api/ai")
+            or path in {"/api/ai/analyze", "/api/ai/anomaly/analyze", "/api/ai/incidents/analyze"}
             or path == "/api/access/check"
         ):
             return JSONResponse(status_code=403, content={"detail": "Недостаточно прав для этой операции."})
