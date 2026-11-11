@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import {
   analyzeSecurityIncidents, explainSecurityIncident, getLocalAIAssistantStatus,
-  getSecurityIncidents, type SecurityIncident,
+  getSecurityIncidents, updateSecurityIncidentStatus, type SecurityIncident,
 } from "../services/api";
 
 function formatTime(value: string) {
@@ -69,6 +69,15 @@ export default function IncidentsPage({ canAnalyze = true }: { canAnalyze?: bool
     }
   };
 
+  const changeStatus = async (incident: SecurityIncident, status: "resolved" | "dismissed") => {
+    try {
+      await updateSecurityIncidentStatus(incident.id, status);
+      await load();
+    } catch {
+      setError("Не удалось изменить статус инцидента.");
+    }
+  };
+
   const askAssistant = async (incident: SecurityIncident) => {
     setAssistantBusy(incident.id);
     try {
@@ -126,7 +135,7 @@ export default function IncidentsPage({ canAnalyze = true }: { canAnalyze?: bool
               <div className="incident-card__main">
                 <div className="incident-card__severity">
                   <span className={"incident-severity incident-severity--" + incident.severity}>{severityLabel(incident.severity)}</span>
-                  <span className="incident-id">INC-{String(incident.id).padStart(5, "0")}</span>
+                  <span className="incident-id">INC-{String(incident.id).padStart(5, "0")} · {incident.status === "open" ? "ОТКРЫТ" : incident.status === "resolved" ? "ОБРАБОТАН" : "ОТКЛОНЁН"}</span>
                 </div>
                 <div className="incident-card__heading">
                   <div><h2>{incident.title}</h2><p>{incident.summary}</p></div>
@@ -139,6 +148,7 @@ export default function IncidentsPage({ canAnalyze = true }: { canAnalyze?: bool
                 </div>
                 <div className="incident-card__actions">
                   <button type="button" onClick={() => setExpanded(isExpanded ? null : incident.id)}>{isExpanded ? "Скрыть детали" : "Детали и доказательства"} <ChevronDown size={14} className={isExpanded ? "is-rotated" : ""} /></button>
+                  {incident.status === "open" && <><button type="button" onClick={() => void changeStatus(incident, "resolved")}>Отметить обработанным</button><button type="button" onClick={() => void changeStatus(incident, "dismissed")}>Отклонить</button></>}
                   <button type="button" className="incident-ai-action" disabled={assistantBusy === incident.id || !assistant?.available} onClick={() => void askAssistant(incident)}>
                     <Sparkles size={14} /> {assistantBusy === incident.id ? "Анализ…" : "Объяснить с помощью ИИ"}
                   </button>
