@@ -31,7 +31,9 @@ class LivenessService:
         self._challenges: dict[str, dict[str, Any]] = {}
         self._proofs: dict[str, dict[str, Any]] = {}
 
-    def create(self, admin_id: int, subject_id: int) -> dict[str, Any]:
+    def create(self, admin_id: int, subject_id: int, purpose: str = "face_enrollment") -> dict[str, Any]:
+        if purpose not in {"face_enrollment", "pad_testing"}:
+            raise ValueError("Недопустимая цель liveness challenge.")
         now = datetime.now(timezone.utc)
         self._challenges = {
             key: value for key, value in self._challenges.items()
@@ -45,7 +47,7 @@ class LivenessService:
         actions = list(secrets.SystemRandom().sample(self.ACTIONS, len(self.ACTIONS)))
         expires = now + timedelta(seconds=self.TTL_SECONDS)
         self._challenges[challenge_id] = {
-            "admin_id": admin_id, "subject_id": subject_id,
+            "admin_id": admin_id, "subject_id": subject_id, "purpose": purpose,
             "actions": actions, "expires_at": expires, "used": False,
         }
         return {
@@ -205,6 +207,14 @@ class LivenessService:
             from loguru import logger
             logger.exception("Liveness verification engine failed")
             return {"verified": False, "reason": "liveness_engine_unavailable", "results": results}
+
+        if challenge.get("purpose") == "pad_testing":
+            return {
+                "verified": True,
+                "assurance": "pad_test_only",
+                "results": results,
+                "warning": "Результат только для PAD-испытания. Одноразовый токен регистрации биометрии не выдавался.",
+            }
 
         proof = secrets.token_urlsafe(32)
         self._proofs[proof] = {
