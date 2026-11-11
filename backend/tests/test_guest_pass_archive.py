@@ -1,9 +1,23 @@
 import sqlite3
+import tempfile
 import unittest
 from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
+from app.config import settings
+
+_IMPORT_DB_DIR = tempfile.TemporaryDirectory()
+_PREVIOUS_SECRET_KEY = settings.SECRET_KEY
+_PREVIOUS_DB_PATH = settings.DB_PATH
+_PREVIOUS_DATA_DIR = settings.DATA_DIR
+settings.SECRET_KEY = "0123456789abcdef" * 4
+settings.DATA_DIR = Path(_IMPORT_DB_DIR.name)
+settings.DB_PATH = Path(_IMPORT_DB_DIR.name) / "guest-test-import.db"
 from app.services.db_service import DBService
+settings.SECRET_KEY = _PREVIOUS_SECRET_KEY
+settings.DB_PATH = _PREVIOUS_DB_PATH
+settings.DATA_DIR = _PREVIOUS_DATA_DIR
 
 
 class GuestPassArchiveTests(unittest.TestCase):
