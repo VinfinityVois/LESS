@@ -595,6 +595,29 @@ class DBService:
             return dict(row) if row else {}
 
 
+
+    def update_security_incident_status(self, incident_id: int, status: str) -> Dict[str, Any] | None:
+        if status not in {"open", "resolved", "dismissed"}:
+            raise ValueError("Недопустимый статус инцидента.")
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            conn.execute(
+                "UPDATE security_incidents SET status=?,updated_at=? WHERE id=?",
+                (status, now, incident_id),
+            )
+            row = conn.execute(
+                "SELECT * FROM security_incidents WHERE id=?",
+                (incident_id,),
+            ).fetchone()
+            if not row:
+                return None
+            item = dict(row)
+            try:
+                item["evidence"] = json.loads(item.pop("evidence_json"))
+            except (TypeError, ValueError):
+                item["evidence"] = {}
+            return item
+
     def get_security_incident(self, incident_id: int) -> Dict[str, Any] | None:
         with self._get_conn() as conn:
             row = conn.execute(
