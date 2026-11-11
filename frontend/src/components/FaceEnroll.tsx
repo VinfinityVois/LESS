@@ -56,6 +56,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const [glasses, setGlasses] = useState<"with" | "without" | "unknown">("unknown");
   const [mask, setMask] = useState<"with" | "without" | "unknown">("unknown");
   const [cameraError, setCameraError] = useState("");
+  const [errorContext, setErrorContext] = useState<"camera" | "liveness" | "save" | "unknown">("unknown");
   const [modelReady, setModelReady] = useState(false);
   const [cameraAttempt, setCameraAttempt] = useState(0);
   const [shots, setShots] = useState<{front?: Shot; profile?: Shot}>({});
@@ -72,6 +73,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (cancelled) return;
         if (!subject || !subject.is_active || subject.deleted_at) {
           setCameraError("Сотрудник не найден или отключён. Сначала создайте активную карточку сотрудника и повторите регистрацию биометрии.");
+          setErrorContext("camera");
           setStage("error");
           return;
         }
@@ -147,6 +149,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         }
         if (cancelled) return;
         setCameraError(e?.response?.data?.detail || (e?.name === "NotAllowedError" ? "Доступ к камере запрещён. Разрешите камеру для LESS в настройках Windows и приложения." : e?.name === "NotFoundError" ? "Камера не найдена. Подключите камеру и повторите попытку." : e?.name === "NotReadableError" ? "Камера занята другим приложением. Закройте его и повторите попытку." : e?.message || "Не удалось запустить камеру или загрузить модель анализа лица."));
+        setErrorContext("camera");
         setStage("error");
       }
     };
@@ -229,7 +232,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         : " Похожих зарегистрированных шаблонов не найдено.";
       setResult((response?.message || "Биометрический профиль сохранён.") + matchText);
       setStage("done");
-    } catch (e: any) { setResult(e?.response?.data?.detail || e?.message || "Backend не смог зарегистрировать биометрию."); setStage("error"); }
+    } catch (e: any) { setResult(e?.response?.data?.detail || e?.message || "Backend не смог зарегистрировать биометрию."); setErrorContext("save"); setStage("error"); }
   };
 
 
@@ -241,7 +244,6 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     setCaptureProgress(0);
     setChallenge(null);
     setLivenessProof("");
-    setShots({});
     setResult("");
     try {
       if (consentConfirmed) {
@@ -251,6 +253,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       setStage("liveness");
     } catch (e: any) {
       setCameraError(e?.response?.data?.detail || "Не удалось получить новый liveness challenge.");
+      setErrorContext("liveness");
       setStage("error");
     }
   };
@@ -266,6 +269,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
       setCaptureProgress(0);
     } catch (e: any) {
       setCameraError(e?.response?.data?.detail || "Не удалось начать проверку присутствия.");
+      setErrorContext("liveness");
       setStage("error");
     } finally { setChallengeBusy(false); }
   };
@@ -321,6 +325,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
           ? `${detail.message || "Проверка действия не пройдена."} Действие: ${detail.failed_action}. Изменение сигнала: ${detail.signal_delta ?? "нет данных"}. ${detail.diagnostics ? `EAR min/max: ${detail.diagnostics.ear_min ?? "—"}/${detail.diagnostics.ear_max ?? "—"}; отношение: ${detail.diagnostics.closed_to_open_ratio ?? "—"}; открыто до/после: ${detail.diagnostics.opened_before ? "да" : "нет"}/${detail.diagnostics.reopened_after ? "да" : "нет"}; оценка: ${detail.diagnostics.blink_score ?? "—"}%.` : ""} Повторите действие: проверка снимает три серии подряд, моргните естественно в каждой серии.`
           : detail?.message || e?.message;
       setCameraError(String(diagnostic || "Проверка присутствия не пройдена."));
+      setErrorContext("liveness");
       setCaptureProgress(0);
       setStage("error");
     } finally {
@@ -336,6 +341,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const reset = () => { void restartLiveness(); };
   const retryCamera = () => {
     setCameraError("");
+    setErrorContext("unknown");
     setModelReady(false);
     setFaceFound(false);
     setStage("liveness");
@@ -346,7 +352,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     <div className="face-modal">
       <header className="face-modal-header"><div><span className="eyebrow">БИОМЕТРИЧЕСКАЯ РЕГИСТРАЦИЯ</span><h2>Сканирование лица</h2><p>{userName} · ID {userId}</p></div><button className="users-icon-button" onClick={onCancel} aria-label="Закрыть"><X size={18}/></button></header>
       {stage === "done" ? <div className="face-result"><span className="face-result-icon"><Check size={25}/></span><h3>Запрос обработан</h3><p>{result}</p><p className="face-disclaimer">Снимки анфас и в профиль, а также два 128-мерных шаблона SFace сохранены в зашифрованном виде. Процент сходства — оценка cosine similarity модели, а не вероятность совпадения личности.</p><button className="users-button users-button--primary" onClick={() => { window.dispatchEvent(new Event("less:users-refresh")); onDone(); }}>Готово</button></div> :
-      stage === "error" ? <div className="face-result"><span className="face-result-icon is-error"><CircleAlert size={25}/></span><h3>Не удалось завершить сканирование</h3><p>{cameraError || result}</p><button className="users-button" onClick={() => modelReady ? reset() : retryCamera()}><RotateCcw size={14}/> {modelReady ? "Повторить проверку" : "Повторить подключение камеры"}</button><button className="users-button" onClick={onCancel}>Закрыть</button></div> :
+      stage === "error" ? <div className="face-result"><span className="face-result-icon is-error"><CircleAlert size={25}/></span><h3>{errorContext === "save" ? "Не удалось сохранить профиль" : errorContext === "liveness" ? "Проверка присутствия не пройдена" : "Не удалось подключить камеру"}</h3><p>{cameraError || result}</p>{errorContext === "save" ? <><button className="users-button users-button--primary" onClick={() => { setCameraError(""); setStage("review"); }}><RotateCcw size={14}/> Вернуться к снимкам и повторить сохранение</button>{shots.front && <button className="users-button" onClick={() => { setCameraError(""); setRetakeTarget("front"); setStage("front"); }}>Переснять только анфас</button>}{shots.profile && <button className="users-button" onClick={() => { setCameraError(""); setRetakeTarget("profile"); setStage("profile"); }}>Переснять только профиль</button>}</> : errorContext === "liveness" ? <button className="users-button users-button--primary" onClick={() => void restartLiveness()}><RotateCcw size={14}/> Повторить liveness без сброса камеры и регистрации</button> : <button className="users-button" onClick={retryCamera}><RotateCcw size={14}/> Повторить подключение камеры</button>}<button className="users-button" onClick={onCancel}>Закрыть</button></div> :
       <><div className="face-stepper"><span className={stage === "front" ? "is-current" : shots.front ? "is-done" : ""}>01 · АНФАС</span><i/><span className={stage === "profile" ? "is-current" : shots.profile ? "is-done" : ""}>02 · ПРОФИЛЬ</span><i/><span className={stage === "review" || stage === "saving" ? "is-current" : ""}>03 · ПРОВЕРКА</span></div>
       {stage === "review" || stage === "saving" ? <div className="face-review"><div><span>АНФАС</span>{shots.front && <img src={shots.front.dataUrl} alt="Снимок анфас"/>}<b>Качество кадра: {shots.front?.quality}%</b></div><div><span>ПРОФИЛЬ</span>{shots.profile && <img src={shots.profile.dataUrl} alt="Снимок профиля"/>}<b>Качество кадра: {shots.profile?.quality}%</b></div><p>{shotsAcceptable ? "Оба кадра прошли базовую проверку освещения и контраста. Это предварительный контроль качества, а не сертификация биометрии или liveness." : "Качество одного из кадров низкое. Переснимите анфас и профиль при более ровном освещении."}</p><button className="users-button" disabled={stage === "saving"} onClick={() => { setRetakeTarget("front"); setStage("front"); }}><RotateCcw size={14}/> Переснять анфас</button><button className="users-button" disabled={stage === "saving"} onClick={() => { setRetakeTarget("profile"); setStage("profile"); }}><RotateCcw size={14}/> Переснять профиль</button><button className="users-button users-button--primary" disabled={!shotsAcceptable || stage === "saving"} onClick={() => void save()}><ScanFace size={15}/> Сохранить биометрию</button></div> :
       stage === "liveness" ? <><div className="face-camera-stage"><video ref={videoRef} autoPlay playsInline muted/><svg className="face-landmark-overlay" viewBox="0 0 1000 1000" preserveAspectRatio="none"><defs><linearGradient id="faceStroke" x1="0" x2="1"><stop stopColor="#53d9cf"/><stop offset="1" stopColor="#a2f0d2"/></linearGradient></defs>{outline && <polyline points={outline} fill="none" stroke="url(#faceStroke)" strokeWidth="2.2" vectorEffect="non-scaling-stroke"/>}{landmarks && <g className="face-mesh-lines">{meshEdges.map(([from,to],index) => { const a=landmarks[from], b=landmarks[to]; return a && b ? <line key={index} x1={a.x*1000} y1={a.y*1000} x2={b.x*1000} y2={b.y*1000}/> : null; })}</g>}{landmarks?.map((p,i) => <circle key={i} cx={p.x*1000} cy={p.y*1000} r={i%7===0?3:1.4} fill="#73e7d9" opacity={i%7===0?.95:.55}/>)}</svg><div className="face-camera-label"><Camera size={13}/> LIVE · SERVER CHALLENGE</div><div className="face-target"><span>ПРОВЕРКА ЖИВОГО ПРИСУТСТВИЯ</span></div></div><div className="liveness-card">{!challenge ? <><span className="eyebrow">СОГЛАСИЕ НА ОБРАБОТКУ БИОМЕТРИИ</span><h3>Подтверждение согласия</h3><p>Перед продолжением убедитесь, что сотрудник уведомлён о сборе и хранении биометрических данных и дал согласие на эту процедуру.</p><label className="liveness-consent"><input type="checkbox" checked={consentConfirmed} onChange={(e)=>setConsentConfirmed(e.target.checked)}/> Я подтверждаю, что субъект перед камерой дал согласие на обработку биометрических данных</label><button className="users-button users-button--primary" disabled={!consentConfirmed || !modelReady || !faceFound || challengeBusy} onClick={()=>void beginLiveness()}>{challengeBusy ? "Подготовка…" : "Подтвердить согласие и начать"}</button></> : <><span className="eyebrow">СЛУЧАЙНАЯ ПОСЛЕДОВАТЕЛЬНОСТЬ · {challengeIndex+1}/{challenge.actions.length}</span><h3>{challenge.instructions[challenge.actions[challengeIndex]] || "Подготовка проверки…"}</h3><p>После нажатия камера снимет три последовательные серии (по 12 кадров). Повторите указанное действие один раз в каждой серии; моргайте естественно, без сильного зажмуривания. Сервер проверит весь временной ряд; кадры не сохраняются.</p><div className="liveness-progress">{challenge.actions.map((action,index)=><i key={action} className={index < challengeIndex ? "is-done" : index === challengeIndex ? "is-current" : ""}/>)}</div>{challengeBusy && <div className="liveness-capture-progress"><div><span>Общий прогресс проверки</span><b>{overallLivenessProgress}%</b></div><i><span style={{ width: `${overallLivenessProgress}%` }} /></i></div>}<button className="users-button users-button--primary" disabled={!modelReady || !faceFound || challengeBusy} onClick={() => void captureChallengeAction()}>{challengeBusy ? `Сбор кадров · ${captureProgress}%` : "Выполнить действие"}</button></>}<span className="liveness-status">{!modelReady ? "Загрузка модели…" : !faceFound ? "Расположите лицо перед камерой" : "Лицо обнаружено · можно начинать"}</span><small className="liveness-permission-note">Разрешение камеры сохраняется настройками Windows / WebView. Выберите «Разрешить» для LESS; приложение не может обойти системный запрет.</small></div></> :
