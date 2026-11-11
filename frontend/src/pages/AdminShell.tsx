@@ -52,6 +52,22 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   const [toast, setToast] = useState<{message:string;kind:"success"|"error"|"info"} | null>(null);
 
   useEffect(() => {
+    let timer = 0;
+    const receiveNotice = (event: Event) => {
+      const detail = (event as CustomEvent<{message?:string;kind?:"success"|"error"|"info"}>).detail;
+      if (!detail?.message) return;
+      setToast({ message: detail.message, kind: detail.kind || "success" });
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => setToast(null), 4200);
+    };
+    window.addEventListener("less:notify", receiveNotice);
+    return () => {
+      window.removeEventListener("less:notify", receiveNotice);
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 5000);
     return () => window.clearInterval(timer);
@@ -125,6 +141,7 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
   ];
 
   return <div className="less-shell">
+    {toast && <div className={`fixed right-6 top-20 z-[120] max-w-md rounded-lg border px-4 py-3 shadow-2xl text-sm ${toast.kind === "error" ? "border-red-400/40 bg-red-950/90 text-red-100" : "border-primary/30 bg-surface-low text-primary"}`} role="status" aria-live="polite">{toast.message}</div>}
     <aside className={`less-sidebar is-pinned ${mobileNav ? "is-open" : ""}`} aria-label="Боковая навигация">
       <div className="brand-lockup"><div className="brand-mark"><RadioTower size={21} strokeWidth={1.8} /></div><div className="brand-copy"><div className="brand-name">LESS<span> / </span>CONTROL</div><div className="brand-subtitle">LOCAL ENTRY SECURITY SYSTEM</div></div><span className="brand-version">0.1</span></div>
       <div className="site-selector"><div className="site-selector__top"><span>ОБЪЕКТ НАБЛЮДЕНИЯ</span><span className="site-selector__code">LOC–01</span></div><div className="site-selector__name">Главный контрольно-пропускной пункт</div><div className="site-selector__bottom"><span className="site-live-dot" /> ЛОКАЛЬНЫЙ КОНТУР</div></div>

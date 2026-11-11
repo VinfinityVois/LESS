@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Download, Search, ShieldCheck, FlaskConical } from "lucide-react";
+import { Download, Search, ShieldCheck } from "lucide-react";
 import { SECURITY_TEST_DATASET } from "../data/securityTestDataset";
 import { downloadCsv } from "../services/notifications";
 

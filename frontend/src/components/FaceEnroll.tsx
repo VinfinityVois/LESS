@@ -156,8 +156,10 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     ctx.save(); ctx.translate(width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, width, height); ctx.restore();
-    const faceX = landmarks!.map((p) => p.x * width);
-    const faceY = landmarks!.map((p) => p.y * height);
+    const captureLandmarks = latestLandmarksRef.current || landmarks;
+    if (!captureLandmarks?.length) return;
+    const faceX = captureLandmarks.map((p) => p.x * width);
+    const faceY = captureLandmarks.map((p) => p.y * height);
     const left = Math.max(0, Math.floor(Math.min(...faceX) - width * .025));
     const top = Math.max(0, Math.floor(Math.min(...faceY) - height * .025));
     const right = Math.min(width, Math.ceil(Math.max(...faceX) + width * .025));
@@ -170,14 +172,13 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
     const contrastScore = Math.min(100, deviation * 1.8);
 
     const eyeDistance = Math.max(.001, Math.hypot(captureLandmarks[33].x - captureLandmarks[263].x, captureLandmarks[33].y - captureLandmarks[263].y));
-    const origin = landmarks![1];
-    const template = landmarks!.map((point) => [
+    const origin = captureLandmarks[1];
+    const template = captureLandmarks.map((point) => [
       Number(((point.x - origin.x) / eyeDistance).toFixed(5)),
       Number(((point.y - origin.y) / eyeDistance).toFixed(5)),
       Number((((point.z ?? 0) - (origin.z ?? 0)) / eyeDistance).toFixed(5)),
     ]);
     const faceWidth = right - left;
-    const faceHeight = bottom - top;
     const sizeScore = Math.max(0, Math.min(100, (faceWidth / width) * 320));
     let edgeTotal = 0, edgeCount = 0;
     const cropWidth = Math.max(1, right - left);

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Search, Plus, Upload, Download, UserRound, Pencil, Trash2, ScanFace, X, ChevronLeft, FileUp, Clock3, CalendarDays } from "lucide-react";
-import { listUsers, createUser, updateUser, deleteUser, getUser, type User as UserType } from "../services/api";\nimport { downloadCsv } from "../services/notifications";
+import { listUsers, createUser, updateUser, deleteUser, getUser, type User as UserType } from "../services/api";
+import { downloadCsv } from "../services/notifications";
 
 type UserForm = { name: string; position: string; nfc_uid: string; pin: string };
 const emptyForm: UserForm = { name: "", position: "", nfc_uid: "", pin: "" };
