@@ -15,6 +15,20 @@ function statusText(event: string, reason?: string | null) {
   return event === "denied" ? "Отказ" : event;
 }
 
+function methodText(method?: string | null) {
+  const labels: Record<string, string> = {
+    "nfc+face": "Карта + лицо",
+    "nfc+pin": "Карта + PIN",
+    "nfc+fingerprint": "Карта + отпечаток",
+    "face": "Распознавание лица",
+    "pin": "PIN-код",
+    "fingerprint": "Отпечаток пальца",
+    "guest_code": "Гостевой код",
+    "test": "Тестовый сценарий",
+  };
+  return method ? (labels[method] || method.replaceAll("+", " + ")) : "Способ не указан";
+}
+
 export default function LogsPage() {
   const [days, setDays] = useState<LogDay[]>([]);
   const [selectedDay, setSelectedDay] = useState("");
@@ -58,7 +72,7 @@ export default function LogsPage() {
       </aside>
       <div className="logs-events-panel"><div className="users-section-title"><div><span className="eyebrow">СВОДКА ДНЯ</span><h2>{selectedDay || "Нет даты"}</h2></div><span className="event-count">{events.length} групп</span></div>
         <div className="logs-compact-table"><div className="logs-compact-head"><span>ПЕРВЫЙ / ПОВТОРНЫЙ ПИК</span><span>СПОСОБ · UID · СОТРУДНИК</span><span>СТАТУС</span></div>
-          {events.map((event) => <div className="logs-compact-row" key={`${event.id}-${event.user_id}-${event.nfc_uid}`}><div><b>{fmt(event.first_peak_at, true)}</b><small>{event.repeat_peak_at ? `Повтор: ${fmt(event.repeat_peak_at, true)} · ${event.attempts} попытки` : "Повторных пиков нет"}</small></div><div><b>{event.factor_used || "Способ не указан"}</b><small>{event.nfc_uid || "UID —"} · {event.user_name || (event.user_id ? `ID ${event.user_id}` : "Личность не установлена")}</small></div><div><span className={event.event_type === "granted" ? "is-granted" : event.event_type === "simulated" ? "is-simulated" : "is-denied"}>{statusText(event.event_type, event.reason)}</span>{event.reason && event.event_type !== "granted" && <small title={event.reason}>{event.reason.slice(0, 90)}</small>}</div></div>)}
+          {events.map((event) => <div className="logs-compact-row" key={`${event.id}-${event.user_id}-${event.nfc_uid}`}><div><b>{fmt(event.first_peak_at, true)}</b><small>{event.repeat_peak_at ? `Повтор: ${fmt(event.repeat_peak_at, true)} · ${event.attempts} попытки` : "Повторных пиков нет"}</small></div><div><b>{methodText(event.factor_used)}</b><small>{event.nfc_uid || "UID —"} · {event.user_name || (event.user_id ? `ID ${event.user_id}` : "Личность не установлена")}</small></div><div><span className={event.event_type === "granted" ? "is-granted" : event.event_type === "simulated" ? "is-simulated" : "is-denied"}>{statusText(event.event_type, event.reason)}</span>{event.reason && event.event_type !== "granted" && <small title={event.reason}>{event.reason.slice(0, 90)}</small>}</div></div>)}
           {!events.length && <div className="logs-empty">{loading ? "Загрузка…" : "За выбранную дату событий нет."}</div>}
         </div>
         <p className="logs-archive-footnote">Группировка: субъект, UID, способ и направление. При отказе показан короткий код причины; полный журнал выгружается в CSV.</p>
