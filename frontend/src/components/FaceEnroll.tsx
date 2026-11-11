@@ -109,7 +109,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         setModelReady(true);
         const tick = () => {
           const video = videoRef.current;
-          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current && performance.now() - lastDetectAt.current >= 100) {
+          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current && performance.now() - lastDetectAt.current >= 125) {
             lastDetectAt.current = performance.now();
             lastVideoTime.current = video.currentTime;
             const output = landmarker.detectForVideo(video, performance.now());
@@ -118,7 +118,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
               setFaceFound(true);
               const normalizedLandmarks = face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 }));
               setLandmarks(normalizedLandmarks);
-              if (performance.now() - lastMeshAt.current >= 300) {
+              if (performance.now() - lastMeshAt.current >= 500) {
                 lastMeshAt.current = performance.now();
                 setMeshEdges(buildDynamicMesh(normalizedLandmarks));
               }
