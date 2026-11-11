@@ -159,13 +159,8 @@ export default function BiometricLabPage() {
         if (e?.response?.status !== 422) throw e;
         const detail = e?.response?.data?.detail;
         failureReason = typeof detail === "string" ? detail : String(detail?.code || detail?.message || "challenge_action_failed");
-        const infrastructureFailures = new Set([
-          "liveness_model_missing", "liveness_engine_unavailable",
-          "insufficient_frames", "challenge_invalid", "challenge_expired",
-          "challenge_sequence_mismatch",
-        ]);
-        if (infrastructureFailures.has(failureReason)) {
-          throw new Error("Испытание не засчитано: техническая ошибка проверки (" + failureReason + "). Устраните её и повторите.");
+        if (failureReason !== "challenge_action_failed") {
+          throw new Error("Испытание не засчитано: проверка завершилась технической ошибкой или некорректным кадром (" + failureReason + "). Устраните причину и повторите.");
         }
       }
 
