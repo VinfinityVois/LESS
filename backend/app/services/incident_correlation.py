@@ -94,8 +94,9 @@ class IncidentCorrelationEngine:
                 risk += points
                 factors.append({"code": "liveness_failures", "points": points, "count": len(liveness_failures)})
             if controller_events:
-                risk += 45
-                factors.append({"code": "controller_security_event", "points": 45, "count": len(controller_events)})
+                points = 60 if any("forced_open" in str(row.get("reason") or "").lower() for row in controller_events) else 45
+                risk += points
+                factors.append({"code": "controller_security_event", "points": points, "count": len(controller_events)})
             if rapid_multi_door:
                 risk += 20
                 factors.append({"code": "rapid_multi_door", "points": 20, "doors": doors})
