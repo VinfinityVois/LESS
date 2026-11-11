@@ -172,6 +172,14 @@ async def list_security_incidents(limit: int = Query(100, ge=1, le=500), status:
     return {"incidents": db_service.get_security_incidents(limit=limit, status=status)}
 
 
+@app.patch("/api/ai/incidents/{incident_id}")
+async def update_security_incident(incident_id: int, body: IncidentStatusRequest):
+    incident = db_service.update_security_incident_status(incident_id, body.status)
+    if not incident:
+        raise HTTPException(status_code=404, detail="Инцидент не найден.")
+    return incident
+
+
 @app.get("/api/ai/assistant/status")
 async def local_ai_assistant_status():
     return await local_ai_assistant.status()
@@ -220,6 +228,10 @@ class AdminBootstrapRequest(BaseModel):
     username: str = Field(min_length=3, max_length=64)
     display_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=12, max_length=256)
+
+
+class IncidentStatusRequest(BaseModel):
+    status: str = Field(pattern="^(open|resolved|dismissed)$")
 
 
 class IncidentAssistantRequest(BaseModel):
