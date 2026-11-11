@@ -268,6 +268,7 @@ class DBService:
         values["updated_at"] = datetime.now(timezone.utc).isoformat()
         assignments = ", ".join(f"{key}=?" for key in values)
         with self._get_conn() as conn:
+            # nosec B608: assignments are composed exclusively from the static allowlist above; values remain bound parameters.
             cur = conn.execute(f"UPDATE users SET {assignments} WHERE id=?", (*values.values(), user_id))
             return cur.rowcount > 0
 
