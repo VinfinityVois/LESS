@@ -48,6 +48,11 @@ class Settings(BaseSettings):
     AI_ANOMALY_WINDOW_MINUTES: int = 60
     AI_FAILED_ATTEMPTS_THRESHOLD: int = 5
 
+    # Optional local-only LLM assistant (disabled until a local runtime is installed)
+    LOCAL_LLM_ENABLED: bool = False
+    LOCAL_LLM_BASE_URL: str = "http://127.0.0.1:11434"
+    LOCAL_LLM_MODEL: str = "qwen2.5:3b"
+
 
 settings = Settings()
 
