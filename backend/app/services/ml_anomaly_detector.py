@@ -6,6 +6,7 @@ The model is fitted in-memory on the current cohort and is not persisted.
 from __future__ import annotations
 
 from collections import defaultdict
+import hashlib
 from datetime import datetime, timezone
 from statistics import median
 from typing import Any
@@ -37,7 +38,7 @@ def _subject_key(row: dict) -> str | None:
     if row.get("user_id") is not None:
         return f"user:{row['user_id']}"
     uid = str(row.get("nfc_uid") or "").strip()
-    return f"uid:{uid}" if uid else None
+    return "card:" + hashlib.sha256(uid.encode("utf-8")).hexdigest()[:12] if uid else None
 
 
 def _features(rows: list[dict]) -> list[float]:
