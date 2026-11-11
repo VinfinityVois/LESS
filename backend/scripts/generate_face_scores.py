@@ -79,10 +79,24 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True, help="Output score CSV; keep it outside Git")
     args = parser.parse_args()
 
+    repository_root = Path(__file__).resolve().parents[2]
+    dataset_root = args.dataset_root.resolve()
+    output_path = args.output.resolve()
+    try:
+        dataset_root.relative_to(repository_root)
+        parser.error("Биометрический датасет должен храниться вне репозитория LESS.")
+    except ValueError:
+        pass
+    try:
+        output_path.relative_to(repository_root)
+        parser.error("Файл similarity scores должен храниться вне репозитория LESS.")
+    except ValueError:
+        pass
+
     if not face_recognition_service.ready:
         parser.error("YuNet/SFace models are missing. Run python scripts/download_face_models.py first.")
 
-    with args.output.open("w", encoding="utf-8", newline="") as output:
+    with output_path.open("w", encoding="utf-8", newline="") as output:
         writer = csv.DictWriter(output, fieldnames=["label", "similarity", "condition", "camera"])
         writer.writeheader()
         try:
@@ -90,10 +104,10 @@ def main() -> int:
                 writer.writerow(result)
         except (OSError, ValueError) as exc:
             output.close()
-            args.output.unlink(missing_ok=True)
+            output_path.unlink(missing_ok=True)
             print(str(exc), file=sys.stderr)
             return 2
-    print(f"Similarity scores written: {args.output} (images and embeddings were not copied)")
+    print(f"Similarity scores written: {output_path} (images and embeddings were not copied)")
     return 0
 
 
