@@ -51,7 +51,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install SQLCipher test dependencies
-        run: python -m pip install sqlcipher3==0.6.5 pydantic-settings loguru cryptography pyserial scikit-learn
+        run: python -m pip install sqlcipher3==0.6.5 pydantic-settings loguru cryptography pyserial scikit-learn httpx
       - name: Test plaintext migration, encrypted backup and wrong-key rejection
         env:
           PYTHONPATH: backend
