@@ -14,6 +14,8 @@ class PadMetricsTests(unittest.TestCase):
         ])
         self.assertAlmostEqual(report["apcer"], 1 / 3)
         self.assertAlmostEqual(report["bpcer"], 1 / 2)
+        self.assertGreater(report["apcer_wilson_95"][1], report["apcer"])
+        self.assertEqual(len(report["bpcer_wilson_95"]), 2)
         self.assertEqual(report["attack_species"]["printed_photo"]["presentations"], 2)
         self.assertEqual(report["attack_species"]["screen_video"]["apcer"], 0.0)
 
