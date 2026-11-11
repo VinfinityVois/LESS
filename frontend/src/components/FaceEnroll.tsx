@@ -8,6 +8,27 @@ type Stage = "liveness" | "front" | "profile" | "review" | "saving" | "done" | "
 const FACE_OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109, 10];
 const MESH_EDGES: [number, number][] = [[33,133],[133,159],[159,145],[145,33],[362,263],[263,386],[386,374],[374,362],[70,105],[105,107],[107,66],[300,334],[334,336],[336,296],[168,6],[6,197],[197,5],[5,4],[4,1],[1,2],[2,98],[2,327],[61,291],[291,0],[0,17],[17,61],[234,454],[127,234],[454,356],[10,152]];
 
+function buildDynamicMesh(points: Array<{x:number;y:number}>): [number, number][] {
+  const edges = new Set<string>();
+  const maxDistanceSquared = 0.0016;
+  for (let i = 0; i < points.length; i++) {
+    const nearest: { index: number; distance: number }[] = [];
+    for (let j = 0; j < points.length; j++) {
+      if (i === j) continue;
+      const dx = points[i].x - points[j].x;
+      const dy = points[i].y - points[j].y;
+      const distance = dx * dx + dy * dy;
+      if (distance < maxDistanceSquared) nearest.push({ index: j, distance });
+    }
+    nearest.sort((a, b) => a.distance - b.distance);
+    for (const item of nearest.slice(0, 3)) {
+      const a = Math.min(i, item.index), b = Math.max(i, item.index);
+      edges.add(a + ":" + b);
+    }
+  }
+  return Array.from(edges, (edge) => edge.split(":").map(Number) as [number, number]);
+}
+
 export default function FaceEnroll({ userId, userName, onDone, onCancel }: { userId: number; userName: string; onDone: () => void; onCancel: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -15,6 +36,9 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
   const streamRef = useRef<MediaStream | null>(null);
   const rafRef = useRef<number>(0);
   const lastVideoTime = useRef(-1);
+  const lastDetectAt = useRef(0);
+  const lastMeshAt = useRef(0);
+  const [meshEdges, setMeshEdges] = useState<[number, number][]>(MESH_EDGES);
   const [stage, setStage] = useState<Stage>("liveness");
   const [challenge, setChallenge] = useState<{challenge_id:string;actions:string[];instructions:Record<string,string>} | null>(null);
   const [challengeIndex, setChallengeIndex] = useState(0);
@@ -58,27 +82,44 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
         if (cancelled) return;
         const [vision, stream] = await Promise.all([
           FilesetResolver.forVisionTasks("/mediapipe/wasm"),
-          navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false }),
+          navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 960, max: 1280 }, height: { ideal: 540, max: 720 }, frameRate: { ideal: 24, max: 30 } }, audio: false }),
         ]);
         if (cancelled) { stream.getTracks().forEach((t) => t.stop()); return; }
         streamRef.current = stream;
         if (videoRef.current) { videoRef.current.srcObject = stream; await videoRef.current.play(); }
-        const landmarker = await FaceLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "CPU" },
-          runningMode: "VIDEO", numFaces: 1, outputFaceBlendshapes: true,
-        });
+        const modelAssetPath = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task";
+        const landmarkerOptions = {
+          baseOptions: { modelAssetPath, delegate: "GPU" as const },
+          runningMode: "VIDEO" as const, numFaces: 1, outputFaceBlendshapes: true,
+          minFaceDetectionConfidence: 0.6, minFacePresenceConfidence: 0.6, minTrackingConfidence: 0.55,
+        };
+        let landmarker: FaceLandmarker;
+        try {
+          landmarker = await FaceLandmarker.createFromOptions(vision, landmarkerOptions);
+        } catch {
+          // Older/integrated GPUs may not expose WebGL compute; fall back once to CPU.
+          landmarker = await FaceLandmarker.createFromOptions(vision, {
+            ...landmarkerOptions, baseOptions: { modelAssetPath, delegate: "CPU" },
+          });
+        }
         if (cancelled) { landmarker.close(); return; }
         landmarkerRef.current = landmarker;
         setModelReady(true);
         const tick = () => {
           const video = videoRef.current;
-          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current) {
+          if (video && video.readyState >= 2 && video.currentTime !== lastVideoTime.current && performance.now() - lastDetectAt.current >= 100) {
+            lastDetectAt.current = performance.now();
             lastVideoTime.current = video.currentTime;
             const output = landmarker.detectForVideo(video, performance.now());
             const face = output.faceLandmarks?.[0];
             if (face?.length) {
               setFaceFound(true);
-              setLandmarks(face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 })));
+              const normalizedLandmarks = face.map((p) => ({ x: p.x, y: p.y, z: p.z ?? 0 }));
+              setLandmarks(normalizedLandmarks);
+              if (performance.now() - lastMeshAt.current >= 300) {
+                lastMeshAt.current = performance.now();
+                setMeshEdges(buildDynamicMesh(normalizedLandmarks));
+              }
               const faceWidth = Math.abs(face[454].x - face[234].x);
               const faceHeight = Math.abs(face[152].y - face[10].y);
               const shapeRatio = faceWidth / Math.max(.001, faceHeight);
@@ -94,7 +135,7 @@ export default function FaceEnroll({ userId, userName, onDone, onCancel }: { use
               const estimate = Math.max(-90, Math.min(90, noseOffset * 110));
               setYaw(estimate);
               setQuality(Math.round(Math.max(0, Math.min(100, 100 - Math.abs(estimate) * .45))));
-            } else { setFaceFound(false); setLandmarks(null); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); setFaceShape("НЕ ОПРЕДЕЛЁН"); }
+            } else { setFaceFound(false); setLandmarks(null); setMeshEdges(MESH_EDGES); setYaw(0); setQuality(0); setExpression("ЛИЦО НЕ НАЙДЕНО"); setFaceShape("НЕ ОПРЕДЕЛЁН"); }
           }
           rafRef.current = requestAnimationFrame(tick);
         };
