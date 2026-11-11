@@ -25,8 +25,8 @@ class TokenBucketLimiter:
                 updated_at = moment
             else:
                 old_tokens, old_time = previous
-                tokens = min(self.capacity, old_tokens + max(0.0, moment - old_time) * self.refill_per_second)
-                updated_at = moment
+                updated_at = max(old_time, moment)
+                tokens = min(self.capacity, old_tokens + (updated_at - old_time) * self.refill_per_second)
             allowed = tokens >= 1.0
             if allowed:
                 tokens -= 1.0
