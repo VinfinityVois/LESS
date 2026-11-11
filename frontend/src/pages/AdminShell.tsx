@@ -60,8 +60,15 @@ export default function AdminShell({ admin, onLogout }: { admin: AdminAccount; o
     return () => window.clearInterval(timer);
   }, [refresh]);
   useEffect(() => {
-    if (nav === "guests") void listGuestPasses().then(setGuestPasses).catch(() => setGuestMsg("Не удалось загрузить гостевые пропуска."));
-  }, [nav]);
+    if (nav !== "guests") return;
+    const loadGuestData = () => {
+      void listGuestPasses().then(setGuestPasses).catch(() => setGuestMsg("Не удалось загрузить гостевые пропуска."));
+      if (guestArchiveOpen) void listGuestPassArchive().then((archive) => setGuestArchive(archive.codes)).catch(() => setGuestMsg("Не удалось загрузить архив гостевых пропусков."));
+    };
+    loadGuestData();
+    const timer = window.setInterval(loadGuestData, 30000);
+    return () => window.clearInterval(timer);
+  }, [nav, guestArchiveOpen]);
   useEffect(() => {
     const tick = () => {
       const now = new Date();
