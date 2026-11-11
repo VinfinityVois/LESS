@@ -20,7 +20,20 @@ class BiometricMetricsTests(unittest.TestCase):
         self.assertAlmostEqual(result.frr, 1 / 3)
         self.assertAlmostEqual(result.tar, 2 / 3)
 
-    def test_calibration_respects_target_far_without_touching_runtime_config(self):
+    def test_roc_curve_and_auc_are_returned(self):
+        report = calibrate_threshold(
+            genuine_scores=[0.9, 0.8, 0.7],
+            impostor_scores=[0.2, 0.3, 0.4],
+            target_far=0.0,
+        )
+        self.assertGreaterEqual(report["roc_auc"], 0.0)
+        self.assertLessEqual(report["roc_auc"], 1.0)
+        self.assertEqual(report["roc_auc"], 1.0)
+        self.assertTrue(report["roc_curve"])
+        self.assertIn("false_accept_rate", report["roc_curve"][0])
+        self.assertIn("true_accept_rate", report["roc_curve"][0])
+
+    def test_calibration_respects_target_far_and_does_not_change_runtime(self):
         report = calibrate_threshold(
             genuine_scores=[0.91, 0.88, 0.86, 0.82],
             impostor_scores=[0.31, 0.42, 0.55, 0.61],
@@ -30,6 +43,14 @@ class BiometricMetricsTests(unittest.TestCase):
         self.assertEqual(report["recommended"]["far"], 0.0)
         self.assertGreater(report["recommended"]["threshold"], 0.61)
         self.assertIn("warning", report)
+
+    def test_no_threshold_is_claimed_when_target_far_is_unattainable(self):
+        report = calibrate_threshold(
+            genuine_scores=[0.9, 0.8],
+            impostor_scores=[1.0, 0.4],
+            target_far=0.0,
+        )
+        self.assertIsNone(report["recommended"])
 
     def test_insufficient_or_invalid_data_is_rejected(self):
         with self.assertRaises(ValueError):
