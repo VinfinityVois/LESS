@@ -438,7 +438,7 @@ class PADTrialRequest(BaseModel):
 class LivenessVerifyRequest(BaseModel):
     user_id: int = Field(gt=0)
     challenge_id: str = Field(min_length=20, max_length=128)
-    evidence: list[LivenessActionEvidence] = Field(min_length=4, max_length=4)
+    evidence: list[LivenessActionEvidence] = Field(min_length=2, max_length=2)
 
 
 @app.get("/api/auth/bootstrap-status")
