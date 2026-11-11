@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import secrets
+from threading import RLock
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -30,6 +31,23 @@ class LivenessService:
     def __init__(self) -> None:
         self._challenges: dict[str, dict[str, Any]] = {}
         self._proofs: dict[str, dict[str, Any]] = {}
+        self._landmarker: Any | None = None
+        self._landmarker_lock = RLock()
+
+    def _get_landmarker(self) -> Any:
+        with self._landmarker_lock:
+            if self._landmarker is None:
+                options = vision.FaceLandmarkerOptions(
+                    base_options=mp_python.BaseOptions(model_asset_path=str(self.MODEL_PATH)),
+                    running_mode=vision.RunningMode.IMAGE,
+                    num_faces=1,
+                    min_face_detection_confidence=0.65,
+                    min_face_presence_confidence=0.65,
+                    min_tracking_confidence=0.5,
+                    output_face_blendshapes=True,
+                )
+                self._landmarker = vision.FaceLandmarker.create_from_options(options)
+            return self._landmarker
 
     def create(self, admin_id: int, subject_id: int) -> dict[str, Any]:
         now = datetime.now(timezone.utc)
@@ -92,7 +110,7 @@ class LivenessService:
             raise ValueError("Кадр не является корректным изображением.")
         rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-        result = landmarker.detect(mp_image)
+        with self._landmarker_lock:\n            result = landmarker.detect(mp_image)
         faces = result.face_landmarks or []
         if len(faces) != 1:
             raise ValueError("В каждом кадре должно быть ровно одно обнаруженное лицо.")
@@ -123,16 +141,7 @@ class LivenessService:
         try:
             if not self.MODEL_PATH.is_file():
                 return {"verified": False, "reason": "liveness_model_missing"}
-            options = vision.FaceLandmarkerOptions(
-                base_options=mp_python.BaseOptions(model_asset_path=str(self.MODEL_PATH)),
-                running_mode=vision.RunningMode.IMAGE,
-                num_faces=1,
-                min_face_detection_confidence=0.65,
-                min_face_presence_confidence=0.65,
-                min_tracking_confidence=0.5,
-                output_face_blendshapes=True,
-            )
-            landmarker = vision.FaceLandmarker.create_from_options(options)
+            landmarker = self._get_landmarker()
             try:
                 for action, item in zip(challenge["actions"], evidence):
                     frames = item.get("frames", [])
@@ -198,7 +207,7 @@ class LivenessService:
                             "results": results,
                         }
             finally:
-                landmarker.close()
+                pass  # Reuse the initialized model across verification requests.
         except (ValueError, RuntimeError) as exc:
             return {"verified": False, "reason": str(exc), "results": results}
         except Exception:
