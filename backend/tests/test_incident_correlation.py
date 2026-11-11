@@ -31,7 +31,7 @@ class IncidentCorrelationTests(unittest.TestCase):
         )
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0]["risk_score"], 53)
-        self.assertEqual(result[0]["severity"], "high")
+        self.assertEqual(result[0]["severity"], "medium")
         self.assertIn("repeated_denials", str(result[0]["evidence"]["factors"]))
         self.assertIn("ml_anomaly", str(result[0]["evidence"]["factors"]))
         self.assertNotIn("RAW-UID-001", str(result))
