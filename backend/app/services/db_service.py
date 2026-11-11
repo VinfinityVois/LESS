@@ -140,6 +140,7 @@ class DBService:
             self._ensure_column(conn, "users", "face_profile_vector", "BLOB")
             self._ensure_column(conn, "users", "photo_blob", "BLOB")
             self._ensure_column(conn, "users", "profile_photo_blob", "BLOB")
+            self._ensure_column(conn, "users", "face_observation", "BLOB")
             self._ensure_column(conn, "users", "deleted_at", "TEXT")
             self._ensure_column(conn, "access_logs", "direction", "TEXT")
             self._ensure_column(conn, "access_logs", "door_id", "TEXT")
@@ -202,7 +203,7 @@ class DBService:
         user["is_active"] = int(user.get("is_active") or 0)
         user["face_enrolled"] = int(bool(user.get("face_vector")))
         user["photo_available"] = bool(user.get("photo_blob") or user.get("profile_photo_blob"))
-        for private_field in ("face_embedding", "face_profile_embedding", "face_vector", "face_profile_vector", "pin_hash", "fingerprint_hash"):
+        for private_field in ("face_embedding", "face_profile_embedding", "face_vector", "face_profile_vector", "face_observation", "pin_hash", "fingerprint_hash"):
             user.pop(private_field, None)
         if not include_photo:
             user.pop("photo_blob", None)
@@ -425,15 +426,26 @@ class DBService:
 
     def save_face_profile(self, user_id: int, front_landmarks: List[List[float]],
                           profile_landmarks: List[List[float]], front_photo: str,
-                          profile_photo: str) -> None:
-        # MediaPipe landmarks are used only for pose guidance in the client;
-        # identity templates are the separately generated encrypted SFace vectors.
+                          profile_photo: str, glasses: str = "unknown",
+                          mask: str = "unknown", face_shape: str = "unknown") -> None:
+        # Full normalized MediaPipe mesh is stored encrypted as supplemental geometry.
+        # SFace vectors remain the actual identity templates; appearance flags are operator observations.
+        if glasses not in {"with", "without", "unknown"} or mask not in {"with", "without", "unknown"}:
+            raise ValueError("Недопустимые признаки внешнего вида биометрического профиля.")
         photo = self._photo_blob(front_photo)
         profile_photo_blob = self._photo_blob(profile_photo)
+        front_mesh = self._encrypt(json.dumps(front_landmarks, separators=(",", ":")).encode("utf-8"))
+        profile_mesh = self._encrypt(json.dumps(profile_landmarks, separators=(",", ":")).encode("utf-8"))
+        observation = self._encrypt(json.dumps({
+            "glasses": glasses, "mask": mask, "face_shape": face_shape,
+            "landmark_model": "MediaPipe Face Landmarker · 478 points",
+            "landmark_regions": ["face_outline", "eyes", "nose", "mouth", "facial_contour"],
+            "observation_source": "operator_confirmed",
+        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
         with self._get_conn() as conn:
             cur = conn.execute(
-                "UPDATE users SET face_embedding=NULL,face_profile_embedding=NULL,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
-                (photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
+                "UPDATE users SET face_embedding=?,face_profile_embedding=?,face_observation=?,photo_blob=COALESCE(?,photo_blob),profile_photo_blob=?,updated_at=? WHERE id=? AND deleted_at IS NULL",
+                (front_mesh, profile_mesh, observation, photo, profile_photo_blob, datetime.now(timezone.utc).isoformat(), user_id),
             )
             if cur.rowcount != 1:
                 raise ValueError("Профиль сотрудника не найден или уже удалён. Биометрия не сохранена.")
