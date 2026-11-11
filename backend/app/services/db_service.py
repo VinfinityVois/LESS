@@ -96,6 +96,8 @@ class DBService:
                     attack_type TEXT NOT NULL DEFAULT '',
                     accepted INTEGER NOT NULL,
                     failure_reason TEXT,
+                    test_condition TEXT DEFAULT '',
+                    camera_label TEXT DEFAULT '',
                     created_at TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS security_incidents (
@@ -129,6 +131,8 @@ class DBService:
             self._ensure_column(conn, "users", "deleted_at", "TEXT")
             self._ensure_column(conn, "access_logs", "direction", "TEXT")
             self._ensure_column(conn, "access_logs", "door_id", "TEXT")
+            self._ensure_column(conn, "pad_trials", "test_condition", "TEXT")
+            self._ensure_column(conn, "pad_trials", "camera_label", "TEXT")
         logger.info(f"БД инициализирована: {self.db_path}")
         if settings.SECRET_KEY == "change-me-in-production-use-openssl-rand-hex-32":
             logger.warning("SECRET_KEY задан значением по умолчанию: замените его перед хранением биометрии и фотографий.")
@@ -572,7 +576,7 @@ class DBService:
 
 
 
-    def record_pad_trial(self, trial_class: str, attack_type: str, accepted: bool, failure_reason: str | None = None) -> int:
+    def record_pad_trial(self, trial_class: str, attack_type: str, accepted: bool, failure_reason: str | None = None, test_condition: str = "", camera_label: str = "") -> int:
         if trial_class not in {"bona_fide", "attack"}:
             raise ValueError("Недопустимый класс PAD испытания.")
         if trial_class == "attack" and not attack_type:
@@ -580,15 +584,15 @@ class DBService:
         now = datetime.now(timezone.utc).isoformat()
         with self._get_conn() as conn:
             cur = conn.execute(
-                "INSERT INTO pad_trials (trial_class,attack_type,accepted,failure_reason,created_at) VALUES (?,?,?,?,?)",
-                (trial_class, attack_type if trial_class == "attack" else "", int(accepted), (failure_reason or "")[:200], now),
+                "INSERT INTO pad_trials (trial_class,attack_type,accepted,failure_reason,test_condition,camera_label,created_at) VALUES (?,?,?,?,?,?,?)",
+                (trial_class, attack_type if trial_class == "attack" else "", int(accepted), (failure_reason or "")[:200], (test_condition or "")[:120], (camera_label or "")[:80], now),
             )
             return int(cur.lastrowid)
 
     def get_pad_trials(self, limit: int = 1000) -> List[Dict[str, Any]]:
         with self._get_conn() as conn:
             rows = conn.execute(
-                "SELECT trial_class AS class,attack_type,accepted,failure_reason,created_at FROM pad_trials ORDER BY id DESC LIMIT ?",
+                "SELECT trial_class AS class,attack_type,accepted,failure_reason,test_condition,camera_label,created_at FROM pad_trials ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
             return [
