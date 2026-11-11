@@ -175,6 +175,16 @@ async def analyze_security_incidents(request: Request):
     logs = db_service.get_recent_logs(limit=5000)
     ml_result = ml_anomaly_detector.analyze(logs)
     candidates = incident_correlation_engine.build_incidents(logs, ml_result)
+    for item in candidates:
+        subject_ref = str(item.get("subject_ref") or "")
+        if subject_ref.startswith("user-ref:"):
+            try:
+                subject = db_service.get_user(int(subject_ref.split(":", 1)[1]), include_logs=False)
+            except (TypeError, ValueError):
+                subject = None
+            item["evidence"]["subject_label"] = (subject or {}).get("name") or "Субъект не найден"
+        else:
+            item["evidence"]["subject_label"] = "Непривязанная карта · " + subject_ref[-4:]
     persisted = [db_service.upsert_security_incident(item) for item in candidates]
     admin_auth_service.audit(request.state.admin["id"], "ai.incident_analysis_run", "security_incidents", f"ml_status={ml_result.get('status')}; generated={len(persisted)}")
     return {"ml_status": ml_result.get("status"), "generated": len(persisted), "incidents": persisted}
