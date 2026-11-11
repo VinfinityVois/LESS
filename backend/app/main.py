@@ -1115,6 +1115,10 @@ async def create_guest_code(body: GuestCodeCreate):
 async def list_guest_codes():
     return {"codes": access_policy.list_guest_codes()}
 
+@app.get("/api/access/guest-codes/archive")
+async def list_guest_code_archive():
+    return {"codes": db_service.list_guest_pass_archive(), "days": db_service.get_guest_pass_archive_days()}
+
 
 class GuestPassAction(BaseModel):
     action: str = Field(pattern="^(close|block|restore|reset|extend)$")
