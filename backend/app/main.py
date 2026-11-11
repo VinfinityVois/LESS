@@ -26,6 +26,7 @@ from app.services.liveness_service import liveness_service
 from app.services.face_recognition_service import face_recognition_service
 from app.services.ai_analyzer import ai_analyzer
 from app.services.ml_anomaly_detector import ml_anomaly_detector
+from app.services.incident_correlation import incident_correlation_engine
 from app.services.stream_service import stream_service
 from app.services.access_policy import (
     access_policy,
@@ -152,6 +153,21 @@ async def run_ml_anomaly_analysis():
     """Run advisory cohort anomaly analysis; never changes access decisions."""
     logs = db_service.get_recent_logs(limit=1000)
     return ml_anomaly_detector.analyze(logs)
+
+
+@app.post("/api/ai/incidents/analyze")
+async def analyze_security_incidents():
+    """Correlate rule and ML signals into advisory, auditable incidents."""
+    logs = db_service.get_recent_logs(limit=1000)
+    ml_result = ml_anomaly_detector.analyze(logs)
+    candidates = incident_correlation_engine.build_incidents(logs, ml_result)
+    persisted = [db_service.upsert_security_incident(item) for item in candidates]
+    return {"ml_status": ml_result.get("status"), "generated": len(persisted), "incidents": persisted}
+
+
+@app.get("/api/ai/incidents")
+async def list_security_incidents(limit: int = Query(100, ge=1, le=500), status: Optional[str] = Query(None, pattern="^(open|resolved|dismissed)$")):
+    return {"incidents": db_service.get_security_incidents(limit=limit, status=status)}
 
 
 @app.post("/api/camera/start")
