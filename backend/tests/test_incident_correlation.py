@@ -27,6 +27,7 @@ class IncidentCorrelationTests(unittest.TestCase):
                 "subject_ref": "card:" + hashlib.sha256(b"RAW-UID-001").hexdigest()[:12],
                 "relative_anomaly_score": 90,
                 "model": "IsolationForest",
+                "model_version": "1.5.2",
             }]},
         )
         self.assertEqual(len(result), 1)
@@ -34,6 +35,7 @@ class IncidentCorrelationTests(unittest.TestCase):
         self.assertEqual(result[0]["severity"], "medium")
         self.assertIn("repeated_denials", str(result[0]["evidence"]["factors"]))
         self.assertIn("ml_anomaly", str(result[0]["evidence"]["factors"]))
+        self.assertEqual(result[0]["evidence"]["ml_model_version"], "1.5.2")
         self.assertNotIn("RAW-UID-001", str(result))
 
 
