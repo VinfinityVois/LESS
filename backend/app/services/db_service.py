@@ -277,6 +277,14 @@ class DBService:
             user = self._row_user(row, include_photo=True)
             user["photo_data_url"] = self._photo_data_url(user.pop("photo_blob", None))
             user["profile_photo_data_url"] = self._photo_data_url(user.pop("profile_photo_blob", None))
+            observation_raw = self._decrypt(row["face_observation"])
+            if observation_raw:
+                try:
+                    user["face_appearance"] = json.loads(observation_raw.decode("utf-8"))
+                except (ValueError, TypeError, UnicodeDecodeError):
+                    user["face_appearance"] = None
+            else:
+                user["face_appearance"] = None
             user.pop("face_embedding", None)
             user.pop("face_profile_embedding", None)
             user.pop("face_vector", None)
