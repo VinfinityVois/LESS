@@ -90,6 +90,14 @@ class DBService:
                     revoked_at TEXT,
                     FOREIGN KEY(user_id) REFERENCES users(id)
                 );
+                CREATE TABLE IF NOT EXISTS pad_trials (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    trial_class TEXT NOT NULL,
+                    attack_type TEXT NOT NULL DEFAULT '',
+                    accepted INTEGER NOT NULL,
+                    failure_reason TEXT,
+                    created_at TEXT NOT NULL
+                );
                 CREATE TABLE IF NOT EXISTS security_incidents (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     dedupe_key TEXT NOT NULL UNIQUE,
@@ -562,6 +570,31 @@ class DBService:
             rows = conn.execute("SELECT * FROM access_logs ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
             return [dict(row) for row in rows]
 
+
+
+    def record_pad_trial(self, trial_class: str, attack_type: str, accepted: bool, failure_reason: str | None = None) -> int:
+        if trial_class not in {"bona_fide", "attack"}:
+            raise ValueError("Недопустимый класс PAD испытания.")
+        if trial_class == "attack" and not attack_type:
+            raise ValueError("Для attack испытания требуется тип атаки.")
+        now = datetime.now(timezone.utc).isoformat()
+        with self._get_conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO pad_trials (trial_class,attack_type,accepted,failure_reason,created_at) VALUES (?,?,?,?,?)",
+                (trial_class, attack_type if trial_class == "attack" else "", int(accepted), (failure_reason or "")[:200], now),
+            )
+            return int(cur.lastrowid)
+
+    def get_pad_trials(self, limit: int = 1000) -> List[Dict[str, Any]]:
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT trial_class AS class,attack_type,accepted,failure_reason,created_at FROM pad_trials ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [
+                {**dict(row), "accepted": bool(row["accepted"])}
+                for row in rows
+            ]
 
     def upsert_security_incident(self, incident: Dict[str, Any]) -> Dict[str, Any]:
         now = datetime.now(timezone.utc).isoformat()
