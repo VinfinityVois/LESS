@@ -25,6 +25,8 @@ class LivenessService:
     MAX_FRAME_BYTES = 1_500_000
     MIN_ACTION_FRAMES = 8
     MAX_ACTION_FRAMES = 36
+    MAX_ACTIVE_CHALLENGES = 1024
+    MAX_ACTIVE_PROOFS = 1024
     MODEL_PATH = Path(__file__).resolve().parents[2] / "models" / "face_landmarker.task"
     ACTIONS = ("blink", "turn_head", "open_mouth", "smile")
 
@@ -44,6 +46,8 @@ class LivenessService:
             key: value for key, value in self._proofs.items()
             if value["expires_at"] > now
         }
+        while len(self._challenges) >= self.MAX_ACTIVE_CHALLENGES:
+            self._challenges.pop(next(iter(self._challenges)))
         challenge_id = secrets.token_urlsafe(32)
         actions = list(secrets.SystemRandom().sample(self.ACTIONS, len(self.ACTIONS)))
         expires = now + timedelta(seconds=self.TTL_SECONDS)
@@ -205,6 +209,8 @@ class LivenessService:
                 "warning": "Результат только для PAD-испытания. Одноразовый токен регистрации биометрии не выдавался.",
             }
 
+        while len(self._proofs) >= self.MAX_ACTIVE_PROOFS:
+            self._proofs.pop(next(iter(self._proofs)))
         proof = secrets.token_urlsafe(32)
         self._proofs[proof] = {
             "admin_id": admin_id, "subject_id": subject_id,
