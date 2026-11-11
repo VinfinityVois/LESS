@@ -59,8 +59,10 @@ export default function LogsPage() {
       const link = document.createElement("a");
       link.href = url;
       link.download = `less-events-${day || "all"}.csv`;
+      document.body.appendChild(link);
       link.click();
-      URL.revokeObjectURL(url);
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch { setError("Не удалось экспортировать журнал."); }
   };
   return <section className="content-section logs-page">
