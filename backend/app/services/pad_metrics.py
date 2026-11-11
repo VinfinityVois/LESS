@@ -8,6 +8,8 @@ from __future__ import annotations
 from collections import defaultdict
 from typing import Iterable
 
+from app.services.biometric_metrics import wilson_interval
+
 
 def evaluate_pad_trials(trials: Iterable[dict]) -> dict:
     rows = list(trials)
@@ -49,6 +51,7 @@ def evaluate_pad_trials(trials: Iterable[dict]) -> dict:
             "presentations": len(group),
             "false_accepts": false_accepts,
             "apcer": false_accepts / len(group),
+            "apcer_wilson_95": wilson_interval(false_accepts, len(group)),
         }
 
     apcer = accepted_attacks / len(attacks)
@@ -66,14 +69,18 @@ def evaluate_pad_trials(trials: Iterable[dict]) -> dict:
                 "bona_fide": len(live),
                 "attacks": len(attack),
                 "apcer": (sum(accepted(row) for row in attack) / len(attack)) if attack else None,
+                "apcer_wilson_95": wilson_interval(sum(accepted(row) for row in attack), len(attack)) if attack else None,
                 "bpcer": (sum(not accepted(row) for row in live) / len(live)) if live else None,
+                "bpcer_wilson_95": wilson_interval(sum(not accepted(row) for row in live), len(live)) if live else None,
             }
         return result
 
     return {
         "counts": {"total": len(rows), "bona_fide": len(bona_fide), "attacks": len(attacks)},
         "apcer": apcer,
+        "apcer_wilson_95": wilson_interval(accepted_attacks, len(attacks)),
         "bpcer": bpcer,
+        "bpcer_wilson_95": wilson_interval(bona_rejected, len(bona_fide)),
         "acer": (apcer + bpcer) / 2.0,
         "attack_species": attack_breakdown,
         "by_condition": grouped_metrics("test_condition"),
