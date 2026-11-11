@@ -198,7 +198,7 @@ async def export_logs(day: Optional[str] = Query(None)):
     writer.writerow(["id","date_time","method","uid","person","status","reason","door","direction"])
     for row in rows:
         writer.writerow([row.get("id"),row.get("created_at"),row.get("factor_used"),row.get("nfc_uid"),row.get("user_name") or row.get("user_id") or "Не определён",row.get("event_type"),row.get("reason"),row.get("door_id"),row.get("direction")])
-    return Response(content="\\ufeff"+output.getvalue(), media_type="text/csv; charset=utf-8",
+    return Response(content="\ufeff"+output.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="{filename}"'})
 
 
