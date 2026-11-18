@@ -1,12 +1,9 @@
-"""
-Сервис работы с камерой (OpenCV + mediapipe).
-Позже: детекция лица, отправка кадров по WebSocket.
-"""
+"""Camera capture service (OpenCV)."""
 
 from loguru import logger
 import cv2
 import numpy as np
-from typing import Optional, Generator
+from typing import Optional
 from app.config import settings
 
 
@@ -17,16 +14,24 @@ class CameraService:
 
     def start(self, camera_index: int = None) -> bool:
         index = camera_index if camera_index is not None else settings.CAMERA_INDEX
-        self.cap = cv2.VideoCapture(index)
-        if not self.cap.isOpened():
+        if self.cap:
+            self.stop()
+        capture = cv2.VideoCapture(index)
+        if not capture.isOpened():
+            capture.release()
             logger.error(f"Не удалось открыть камеру {index}")
             return False
-
+        self.cap = capture
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, settings.CAMERA_WIDTH)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, settings.CAMERA_HEIGHT)
         self.cap.set(cv2.CAP_PROP_FPS, settings.CAMERA_FPS)
+        # Prefer MJPEG on many USB cameras for lower latency
+        try:
+            self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+        except Exception:
+            pass
         self.is_running = True
-        logger.info(f"Камера {index} запущена")
+        logger.info(f"Камера {index} запущена ({settings.CAMERA_WIDTH}x{settings.CAMERA_HEIGHT}@{settings.CAMERA_FPS})")
         return True
 
     def stop(self):
@@ -40,7 +45,7 @@ class CameraService:
         if not self.cap or not self.is_running:
             return None
         ret, frame = self.cap.read()
-        if not ret:
+        if not ret or frame is None:
             return None
         return frame
 
@@ -52,5 +57,4 @@ class CameraService:
         return buffer.tobytes()
 
 
-# Глобальный экземпляр (позже заменим на dependency injection)
 camera_service = CameraService()
