@@ -2,7 +2,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "http://127.0.0.1:8000",
-  timeout: 8000,
+  timeout: 15000,
 });
 
 export interface SystemStatus {
@@ -12,6 +12,9 @@ export interface SystemStatus {
   db: string;
   ai: string;
   clients_ws: number;
+  face_models?: boolean;
+  liveness_model?: boolean;
+  last_faces?: number;
 }
 
 export interface User {
@@ -39,6 +42,14 @@ export interface AccessLog {
   direction?: string;
   door_id?: string;
   created_at: string;
+}
+
+export interface FaceBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  score: number;
 }
 
 export async function getStatus(): Promise<SystemStatus> {
@@ -102,8 +113,34 @@ export async function deleteUser(id: number, hard = false) {
   return data;
 }
 
-export async function faceEnroll(userId: number) {
-  const { data } = await api.post(`/api/users/${userId}/face-enroll`);
+export async function faceEnroll(userId: number, image?: string) {
+  const { data } = await api.post(`/api/users/${userId}/face-enroll`, image ? { image } : {});
+  return data;
+}
+
+export async function faceDetect(image: string) {
+  const { data } = await api.post<{ faces: FaceBox[]; count: number }>("/api/face/detect", {
+    image,
+  });
+  return data;
+}
+
+export async function faceEmbedding(image: string) {
+  const { data } = await api.post("/api/face/embedding", { image });
+  return data;
+}
+
+export async function createLivenessChallenge(userId: number) {
+  const { data } = await api.post("/api/biometrics/liveness/challenge", { user_id: userId });
+  return data;
+}
+
+export async function verifyLiveness(body: {
+  user_id: number;
+  challenge_id: string;
+  evidence: { action: string; frames: string[] }[];
+}) {
+  const { data } = await api.post("/api/biometrics/liveness/verify", body);
   return data;
 }
 

@@ -2,10 +2,20 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { lessWs } from "../services/websocket";
 import { Camera, WifiOff, RefreshCw } from "lucide-react";
 
+export type FaceBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  score: number;
+};
+
 export default function VideoFeed() {
   const [connected, setConnected] = useState(false);
   const [fps, setFps] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [faces, setFaces] = useState<FaceBox[]>([]);
+  const [detectorReady, setDetectorReady] = useState<boolean | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const urlRef = useRef<string | null>(null);
   const frameCount = useRef(0);
@@ -13,14 +23,10 @@ export default function VideoFeed() {
   const lastFrameAt = useRef(0);
 
   const handleFrame = useCallback((blob: Blob) => {
-    if (urlRef.current) {
-      URL.revokeObjectURL(urlRef.current);
-    }
+    if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     const url = URL.createObjectURL(blob);
     urlRef.current = url;
-    if (imgRef.current) {
-      imgRef.current.src = url;
-    }
+    if (imgRef.current) imgRef.current.src = url;
     setConnected(true);
     setError(null);
     lastFrameAt.current = Date.now();
@@ -41,11 +47,14 @@ export default function VideoFeed() {
       if (msg?.type === "error" && msg?.message) {
         setError(String(msg.message));
       }
+      if (msg?.type === "face_detection") {
+        setDetectorReady(Boolean(msg.available));
+        setFaces(Array.isArray(msg.faces) ? msg.faces : []);
+      }
     });
 
     lessWs.connect();
 
-    // Detect stalled stream
     const stallCheck = setInterval(() => {
       if (lastFrameAt.current && Date.now() - lastFrameAt.current > 4000) {
         setConnected(false);
@@ -55,15 +64,14 @@ export default function VideoFeed() {
     return () => {
       clearInterval(stallCheck);
       lessWs.disconnect();
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-      }
+      if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     };
   }, [handleFrame]);
 
   const reconnect = () => {
     setError(null);
     setConnected(false);
+    setFaces([]);
     lessWs.disconnect();
     setTimeout(() => lessWs.connect(), 300);
   };
@@ -77,6 +85,29 @@ export default function VideoFeed() {
           connected ? "opacity-100" : "opacity-0"
         }`}
       />
+
+      {/* Face bounding boxes from YuNet */}
+      {connected && faces.length > 0 && (
+        <div className="absolute inset-0 pointer-events-none">
+          {faces.map((f, i) => (
+            <div
+              key={i}
+              className="absolute border-2 border-secondary/90 rounded-sm"
+              style={{
+                left: `${f.x * 100}%`,
+                top: `${f.y * 100}%`,
+                width: `${f.width * 100}%`,
+                height: `${f.height * 100}%`,
+                boxShadow: "0 0 0 1px rgba(0,0,0,0.4)",
+              }}
+            >
+              <span className="absolute -top-5 left-0 text-[10px] font-mono bg-secondary/90 text-slate-950 px-1.5 py-0.5 rounded">
+                {(f.score * 100).toFixed(0)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {!connected && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6">
@@ -92,7 +123,7 @@ export default function VideoFeed() {
               {error ? "Нет связи с камерой" : "Ожидание видеопотока…"}
             </p>
             <p className="text-xs mt-1 text-[#5c6570] font-mono">
-              Backend → WebSocket → JPEG
+              Backend → WebSocket → JPEG + YuNet
             </p>
           </div>
           <button
@@ -106,11 +137,21 @@ export default function VideoFeed() {
       )}
 
       {connected && (
-        <div className="absolute top-3 left-3 flex items-center gap-2">
+        <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
           <div className="flex items-center gap-1.5 bg-black/55 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-medium text-secondary border border-white/[0.06]">
             <span className="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse" />
             LIVE · {fps} fps
           </div>
+          {detectorReady === true && (
+            <div className="bg-black/55 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-mono text-primary border border-white/[0.06]">
+              YuNet · {faces.length} face{faces.length === 1 ? "" : "s"}
+            </div>
+          )}
+          {detectorReady === false && (
+            <div className="bg-black/55 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-mono text-[#7a8494] border border-white/[0.06]">
+              models missing
+            </div>
+          )}
         </div>
       )}
     </div>
