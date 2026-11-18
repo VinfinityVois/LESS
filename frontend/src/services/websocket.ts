@@ -4,8 +4,8 @@ type BinaryHandler = (data: Blob) => void;
 export class LessWebSocket {
   private ws: WebSocket | null = null;
   private url: string;
-  private onJson: MessageHandler | null = null;
-  private onBinary: BinaryHandler | null = null;
+  private jsonHandlers = new Set<MessageHandler>();
+  private binaryHandlers = new Set<BinaryHandler>();
   private reconnectTimer: number | null = null;
   private intentionalClose = false;
 
@@ -33,11 +33,11 @@ export class LessWebSocket {
 
     this.ws.onmessage = (event) => {
       if (event.data instanceof Blob) {
-        this.onBinary?.(event.data);
+        this.binaryHandlers.forEach((h) => h(event.data));
       } else {
         try {
           const json = JSON.parse(event.data);
-          this.onJson?.(json);
+          this.jsonHandlers.forEach((h) => h(json));
         } catch {
           // ignore non-json text
         }
@@ -70,12 +70,16 @@ export class LessWebSocket {
     }
   }
 
-  onMessage(handler: MessageHandler) {
-    this.onJson = handler;
+  /** Register JSON handler; returns unsubscribe. */
+  onMessage(handler: MessageHandler): () => void {
+    this.jsonHandlers.add(handler);
+    return () => this.jsonHandlers.delete(handler);
   }
 
-  onFrame(handler: BinaryHandler) {
-    this.onBinary = handler;
+  /** Register binary frame handler; returns unsubscribe. */
+  onFrame(handler: BinaryHandler): () => void {
+    this.binaryHandlers.add(handler);
+    return () => this.binaryHandlers.delete(handler);
   }
 
   disconnect() {

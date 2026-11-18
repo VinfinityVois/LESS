@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import VideoFeed from "../components/VideoFeed";
 import { getLogs, AccessLog } from "../services/api";
+import { lessWs } from "../services/websocket";
 import { ru } from "../i18n/ru";
 
 function fmt(iso?: string | null) {
@@ -15,8 +16,24 @@ function fmt(iso?: string | null) {
   }
 }
 
+type MatchState = {
+  state: "idle" | "no_face" | "no_gallery" | "unknown" | "matched";
+  matched: boolean;
+  user_id: number | null;
+  name: string | null;
+  score: number | null;
+  margin?: number | null;
+};
+
 export default function LivePage({ status }: { status: any }) {
   const [logs, setLogs] = useState<AccessLog[]>([]);
+  const [match, setMatch] = useState<MatchState>({
+    state: "idle",
+    matched: false,
+    user_id: null,
+    name: null,
+    score: null,
+  });
 
   const load = useCallback(async () => {
     try {
@@ -32,9 +49,54 @@ export default function LivePage({ status }: { status: any }) {
     return () => clearInterval(t);
   }, [load]);
 
+  // Subscribe to face_match from the same WS used by VideoFeed
+  useEffect(() => {
+    const prev = lessWs.onMessage.bind(lessWs);
+    lessWs.onMessage((msg) => {
+      // VideoFeed also registers onMessage — chain via single handler is last-write-wins.
+      // LivePage listens by re-registering a combined approach: use a dedicated listener list would be better,
+      // but for now we only handle face_match here; VideoFeed handles face_detection on its own registration.
+      // To avoid clobbering, we patch both interests via a thin multiplexer in this effect only for face_match
+      // by reading after VideoFeed mounts — order depends on mount order.
+      if (msg?.type === "face_match") {
+        setMatch({
+          state: msg.state || (msg.matched ? "matched" : "unknown"),
+          matched: Boolean(msg.matched),
+          user_id: msg.user_id ?? null,
+          name: msg.name ?? null,
+          score: typeof msg.score === "number" ? msg.score : null,
+          margin: msg.margin,
+        });
+      }
+    });
+    return () => {
+      // leave handler; VideoFeed will re-bind on its lifecycle
+    };
+  }, []);
+
+  const statusLabel =
+    match.state === "matched"
+      ? "MATCH"
+      : match.state === "unknown"
+        ? "UNKNOWN"
+        : match.state === "no_gallery"
+          ? "NO GALLERY"
+          : match.state === "no_face"
+            ? "NO FACE"
+            : "STANDBY";
+
+  const statusClass =
+    match.state === "matched"
+      ? "bg-secondary/15 text-secondary border-secondary/20"
+      : match.state === "unknown"
+        ? "bg-error/10 text-error border-error/20"
+        : "bg-white/[0.04] text-[#7a8494] border-white/[0.06]";
+
+  const scorePct =
+    match.score != null ? Math.round(Math.max(0, Math.min(1, match.score)) * 100) : null;
+
   return (
     <div className="space-y-3">
-      {/* Top bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-[#12161e] border border-white/[0.05] px-3 py-2 rounded-xl">
         <div className="flex items-center gap-2 font-mono-label">
           <span className="w-2 h-2 rounded-full bg-secondary animate-pulse" />
@@ -49,18 +111,16 @@ export default function LivePage({ status }: { status: any }) {
           </span>
           <span className="px-2 py-0.5 rounded-md bg-white/[0.04] border border-white/[0.05] text-secondary flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-secondary" />
-            3D-LIVENESS
+            MATCH-ON-STREAM
           </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
-        {/* Video + events */}
         <div className="lg:col-span-8 space-y-3">
           <div className="relative aspect-[16/10] bg-[#080a0e] rounded-2xl overflow-hidden border border-white/[0.06]">
             <VideoFeed />
 
-            {/* Overlays */}
             <div className="absolute top-3 left-3 z-10 flex gap-1.5">
               <span className="px-2 py-1 rounded-md bg-black/60 backdrop-blur text-error font-mono-label flex items-center gap-1.5 border border-white/[0.06]">
                 <span className="w-1.5 h-1.5 rounded-full bg-error animate-ping" />
@@ -72,7 +132,6 @@ export default function LivePage({ status }: { status: any }) {
               </span>
             </div>
 
-            {/* Face capture frame */}
             <div className="absolute top-[20%] left-1/2 -translate-x-1/2 w-[150px] h-[180px] pointer-events-none z-10">
               <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-secondary/80 rounded-tl-sm" />
               <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-secondary/80 rounded-tr-sm" />
@@ -81,17 +140,30 @@ export default function LivePage({ status }: { status: any }) {
             </div>
 
             <div className="absolute bottom-3 left-3 z-10">
-              <div className="inline-flex items-center gap-2.5 px-3 py-2 rounded-xl bg-black/65 backdrop-blur border border-white/[0.06] border-l-2 border-l-secondary">
-                <LockOpen className="w-4.5 h-4.5 text-secondary shrink-0" />
+              <div
+                className={`inline-flex items-center gap-2.5 px-3 py-2 rounded-xl bg-black/65 backdrop-blur border border-white/[0.06] border-l-2 ${
+                  match.matched ? "border-l-secondary" : "border-l-primary"
+                }`}
+              >
+                <LockOpen className={`w-4.5 h-4.5 shrink-0 ${match.matched ? "text-secondary" : "text-primary"}`} />
                 <div>
-                  <div className="text-sm font-medium text-secondary">{ru.waitingSubject}</div>
-                  <div className="font-mono-label text-[#7a8494]">{ru.waitingHint}</div>
+                  <div className={`text-sm font-medium ${match.matched ? "text-secondary" : "text-primary"}`}>
+                    {match.matched && match.name
+                      ? match.name
+                      : match.state === "unknown"
+                        ? "Лицо не в базе"
+                        : ru.waitingSubject}
+                  </div>
+                  <div className="font-mono-label text-[#7a8494]">
+                    {match.matched
+                      ? `ID ${match.user_id} · score ${scorePct}%`
+                      : ru.waitingHint}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Recent events */}
           <div className="bg-[#12161e] border border-white/[0.05] rounded-2xl p-4">
             <div className="flex items-center gap-2 mb-3">
               <History className="w-4 h-4 text-primary" />
@@ -123,17 +195,15 @@ export default function LivePage({ status }: { status: any }) {
           </div>
         </div>
 
-        {/* Right panel */}
         <div className="lg:col-span-4 space-y-3">
-          {/* Verification */}
           <div className="bg-[#12161e] border border-white/[0.05] rounded-2xl p-4 space-y-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BadgeCheck className="w-4.5 h-4.5 text-secondary" />
                 <span className="font-display font-semibold text-sm">{ru.verification}</span>
               </div>
-              <span className="px-2 py-0.5 rounded-md bg-secondary/15 text-secondary font-mono-label border border-secondary/20">
-                STANDBY
+              <span className={`px-2 py-0.5 rounded-md font-mono-label border ${statusClass}`}>
+                {statusLabel}
               </span>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -149,19 +219,40 @@ export default function LivePage({ status }: { status: any }) {
             <div className="bg-[#0a0d12] border border-white/[0.04] p-3 rounded-xl">
               <div className="flex justify-between items-end">
                 <span className="font-mono-label text-[#5c6570]">{ru.match}</span>
-                <span className="font-display text-2xl font-bold text-[#3d4450]">—</span>
+                <span
+                  className={`font-display text-2xl font-bold ${
+                    scorePct != null && match.matched
+                      ? "text-secondary"
+                      : scorePct != null
+                        ? "text-error"
+                        : "text-[#3d4450]"
+                  }`}
+                >
+                  {scorePct != null ? `${scorePct}%` : "—"}
+                </span>
               </div>
+              {match.margin != null && (
+                <div className="font-mono-label text-[#5c6570] mt-1">
+                  margin {(match.margin * 100).toFixed(1)}%
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Card */}
           <div className="bg-[#12161e] border border-white/[0.05] rounded-2xl p-4 space-y-1.5">
             <div className="font-mono-label text-[#5c6570]">{ru.card}</div>
-            <div className="font-display text-lg font-bold text-[#3d4450]">—</div>
-            <div className="text-sm text-primary/70">{ru.waitingSubject}</div>
+            <div className={`font-display text-lg font-bold ${match.name ? "text-white" : "text-[#3d4450]"}`}>
+              {match.name || "—"}
+            </div>
+            <div className="text-sm text-primary/70">
+              {match.matched
+                ? `user_id ${match.user_id}`
+                : match.state === "no_gallery"
+                  ? "Нет зарегистрированных лиц"
+                  : ru.waitingSubject}
+            </div>
           </div>
 
-          {/* Actions */}
           <div className="bg-[#12161e] border border-white/[0.05] rounded-2xl p-4 space-y-2">
             <div className="font-mono-label text-[#5c6570] mb-1">{ru.actions}</div>
             <button className="w-full py-2.5 rounded-xl bg-secondary text-slate-950 font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition">
@@ -175,7 +266,18 @@ export default function LivePage({ status }: { status: any }) {
                 <Ban className="w-4 h-4" /> {ru.block}
               </button>
             </div>
-            <button className="w-full py-2 rounded-xl bg-[#0a0d12] border border-white/[0.04] text-[#5c6570] text-xs font-mono-label flex items-center justify-center gap-1.5 hover:text-[#8b95a5] transition">
+            <button
+              onClick={() =>
+                setMatch({
+                  state: "idle",
+                  matched: false,
+                  user_id: null,
+                  name: null,
+                  score: null,
+                })
+              }
+              className="w-full py-2 rounded-xl bg-[#0a0d12] border border-white/[0.04] text-[#5c6570] text-xs font-mono-label flex items-center justify-center gap-1.5 hover:text-[#8b95a5] transition"
+            >
               <RefreshCw className="w-3.5 h-3.5" /> {ru.reset}
             </button>
           </div>

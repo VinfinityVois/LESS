@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import base64
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 from threading import RLock
 
 import cv2
@@ -75,6 +75,52 @@ class FaceRecognitionService:
                 })
             return output
 
+    def _embedding_from_faces(
+        self, image: np.ndarray, faces_raw
+    ) -> Optional[dict[str, Any]]:
+        """Internal: one face required. faces_raw is OpenCV YuNet output row."""
+        height, width = image.shape[:2]
+        if faces_raw is None or len(faces_raw) != 1:
+            return None
+        face = faces_raw[0]
+        x, y, w, h = [float(v) for v in face[:4]]
+        if w < 90 or h < 90 or w * h / float(width * height) < 0.025:
+            return None
+        aligned = self._recognizer.alignCrop(image, face)
+        vector = self._recognizer.feature(aligned).astype(np.float32).reshape(-1)
+        if vector.size != 128 or not np.all(np.isfinite(vector)):
+            return None
+        norm = float(np.linalg.norm(vector))
+        if norm < 1e-8:
+            return None
+        vector = vector / norm
+        return {
+            "embedding": vector,
+            "face_box": [
+                round(x / width, 5),
+                round(y / height, 5),
+                round(w / width, 5),
+                round(h / height, 5),
+            ],
+            "face_area": round(w * h / float(width * height), 4),
+            "score": round(float(face[4]), 4),
+        }
+
+    def embedding_from_bgr(self, image: np.ndarray) -> Optional[dict[str, Any]]:
+        """Extract single-face embedding from BGR frame. None if not usable."""
+        with self._lock:
+            self._load()
+            height, width = image.shape[:2]
+            self._detector.setInputSize((width, height))
+            _, faces = self._detector.detect(image)
+            result = self._embedding_from_faces(image, faces)
+            if result is None:
+                return None
+            # convert numpy embedding to list for JSON callers
+            out = dict(result)
+            out["embedding"] = result["embedding"].tolist()
+            return out
+
     def embedding_from_image(self, data_url: str) -> dict[str, Any]:
         with self._lock:
             self._load()
@@ -84,31 +130,17 @@ class FaceRecognitionService:
             _, faces = self._detector.detect(image)
             if faces is None or len(faces) != 1:
                 raise ValueError("face_count_invalid")
-            face = faces[0]
-            x, y, w, h = [float(v) for v in face[:4]]
-            if w < 90 or h < 90 or w * h / float(width * height) < 0.025:
+            result = self._embedding_from_faces(image, faces)
+            if result is None:
                 raise ValueError("face_too_small")
-            aligned = self._recognizer.alignCrop(image, face)
-            vector = self._recognizer.feature(aligned).astype(np.float32).reshape(-1)
-            if vector.size != 128 or not np.all(np.isfinite(vector)):
-                raise RuntimeError("sface_embedding_invalid")
-            norm = float(np.linalg.norm(vector))
-            if norm < 1e-8:
-                raise RuntimeError("sface_embedding_invalid")
-            vector = vector / norm
             return {
-                "embedding": vector.tolist(),
-                "face_box": [
-                    round(x / width, 5),
-                    round(y / height, 5),
-                    round(w / width, 5),
-                    round(h / height, 5),
-                ],
-                "face_area": round(w * h / float(width * height), 4),
+                "embedding": result["embedding"].tolist(),
+                "face_box": result["face_box"],
+                "face_area": result["face_area"],
                 "image_size": [width, height],
             }
 
-    def cosine_similarity(self, left: list[float], right: list[float]) -> float:
+    def cosine_similarity(self, left, right) -> float:
         a = np.asarray(left, dtype=np.float32).reshape(-1)
         b = np.asarray(right, dtype=np.float32).reshape(-1)
         if a.size != 128 or b.size != 128:
@@ -118,7 +150,7 @@ class FaceRecognitionService:
             return -1.0
         return float(np.dot(a, b) / (na * nb))
 
-    def match(self, probe: list[float], gallery: list[tuple[int, list[float]]]) -> dict[str, Any]:
+    def match(self, probe, gallery: list[tuple[int, list]]) -> dict[str, Any]:
         """Return best match from gallery of (user_id, embedding)."""
         best_id, best_score, second = None, -1.0, -1.0
         for uid, emb in gallery:
@@ -139,6 +171,7 @@ class FaceRecognitionService:
             "user_id": best_id if ok else None,
             "score": round(best_score, 4),
             "margin": round(best_score - second, 4) if second >= 0 else None,
+            "threshold": self.MATCH_THRESHOLD,
         }
 
 
