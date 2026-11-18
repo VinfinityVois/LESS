@@ -3,19 +3,23 @@ import AdminShell from "./pages/AdminShell";
 import { ru } from "./i18n/ru";
 
 function LoginScreen({ onLogin }: { onLogin: () => void }) {
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
+  const [login, setLogin] = useState("admin");
+  const [password, setPassword] = useState("admin");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setError("");
+    // Demo gate — no backend auth on this branch
+    const ok =
+      login.trim().toLowerCase() === "admin" && password === "admin";
     setTimeout(() => {
-      if (login === "admin" && password === "admin") onLogin();
-      else setError(ru.badCreds);
+      if (ok) onLogin();
+      else setError("Неверный логин или пароль. Нужно: admin / admin");
       setLoading(false);
-    }, 300);
+    }, 200);
   };
 
   return (
@@ -36,13 +40,18 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
             <div className="font-mono-label text-[#5c6570]">{ru.subtitle}</div>
           </div>
         </div>
-        <h2 className="font-display text-xl font-semibold mb-6">{ru.loginTitle}</h2>
+        <h2 className="font-display text-xl font-semibold mb-2">{ru.loginTitle}</h2>
+        <p className="text-xs text-[#5c6570] mb-6">
+          Демо-вход: логин <span className="text-primary font-mono">admin</span>, пароль{" "}
+          <span className="text-primary font-mono">admin</span>
+        </p>
         <label className="font-mono-label text-[#5c6570] block mb-1.5">{ru.login}</label>
         <input
           className="w-full mb-4 px-3.5 py-2.5 rounded-xl bg-[#0a0d12] border border-white/[0.06] text-sm focus:outline-none focus:border-primary/50 transition"
           value={login}
           onChange={(e) => setLogin(e.target.value)}
           autoFocus
+          autoComplete="username"
         />
         <label className="font-mono-label text-[#5c6570] block mb-1.5">{ru.password}</label>
         <input
@@ -50,6 +59,7 @@ function LoginScreen({ onLogin }: { onLogin: () => void }) {
           className="w-full mb-5 px-3.5 py-2.5 rounded-xl bg-[#0a0d12] border border-white/[0.06] text-sm focus:outline-none focus:border-primary/50 transition"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
         />
         {error && <p className="text-error text-sm mb-3">{error}</p>}
         <button

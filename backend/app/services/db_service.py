@@ -1,79 +1,156 @@
 """
 Сервис работы с БД (SQLite).
+При битой/зашифрованной БД — бэкап и создание новой.
 """
 
 from loguru import logger
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timezone
+from pathlib import Path
 import json
 import sqlite3
+import shutil
 from app.config import settings
 
 
 class DBService:
     def __init__(self):
-        self.db_path = settings.DB_PATH
+        self.db_path = Path(settings.DB_PATH)
         self._init_db()
 
     def _get_conn(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = sqlite3.connect(str(self.db_path))
         conn.row_factory = sqlite3.Row
         return conn
 
+    def _is_valid_sqlite(self) -> bool:
+        if not self.db_path.exists():
+            return False
+        try:
+            with sqlite3.connect(str(self.db_path)) as conn:
+                conn.execute("SELECT 1 FROM sqlite_master LIMIT 1").fetchone()
+            return True
+        except sqlite3.Error:
+            return False
+
+    def _quarantine_bad_db(self) -> None:
+        """Rename unreadable DB so a fresh one can be created."""
+        if not self.db_path.exists():
+            return
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        bak = self.db_path.with_name(f"{self.db_path.name}.broken-{stamp}")
+        try:
+            shutil.move(str(self.db_path), str(bak))
+            logger.warning(
+                f"БД не читается (битая или SQLCipher). Переименована в {bak.name}. Создаётся новая пустая БД."
+            )
+        except OSError as exc:
+            logger.error(f"Не удалось переименовать битую БД: {exc}")
+            raise
+        for suffix in ("-journal", "-wal", "-shm"):
+            side = Path(str(self.db_path) + suffix)
+            if side.exists():
+                try:
+                    side.unlink()
+                except OSError:
+                    pass
+
     def _init_db(self):
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
-        with self._get_conn() as conn:
-            conn.executescript(
-                """
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nfc_uid TEXT UNIQUE NOT NULL,
-                    name TEXT,
-                    position TEXT,
-                    pin_hash TEXT,
-                    fingerprint_hash TEXT,
-                    face_embedding TEXT,
-                    face_enrolled INTEGER DEFAULT 0,
-                    is_active INTEGER DEFAULT 1,
-                    created_at TEXT NOT NULL,
-                    updated_at TEXT,
-                    last_entry TEXT,
-                    last_exit TEXT
-                );
+        if self.db_path.exists() and not self._is_valid_sqlite():
+            self._quarantine_bad_db()
 
-                CREATE TABLE IF NOT EXISTS access_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    nfc_uid TEXT,
-                    user_id INTEGER,
-                    event_type TEXT NOT NULL,
-                    factor_used TEXT,
-                    reason TEXT,
-                    created_at TEXT NOT NULL,
-                    FOREIGN KEY(user_id) REFERENCES users(id)
-                );
+        try:
+            with self._get_conn() as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nfc_uid TEXT UNIQUE NOT NULL,
+                        name TEXT,
+                        position TEXT,
+                        pin_hash TEXT,
+                        fingerprint_hash TEXT,
+                        face_embedding TEXT,
+                        face_enrolled INTEGER DEFAULT 0,
+                        is_active INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT,
+                        last_entry TEXT,
+                        last_exit TEXT
+                    );
 
-                CREATE TABLE IF NOT EXISTS ai_alerts (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    alert_type TEXT NOT NULL,
-                    message TEXT,
-                    severity TEXT DEFAULT 'medium',
-                    related_log_ids TEXT,
-                    created_at TEXT NOT NULL,
-                    is_resolved INTEGER DEFAULT 0
-                );
-                """
-            )
-            # Lightweight migrations for older DBs
-            cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
-            if "position" not in cols:
-                conn.execute("ALTER TABLE users ADD COLUMN position TEXT")
-            if "face_enrolled" not in cols:
-                conn.execute("ALTER TABLE users ADD COLUMN face_enrolled INTEGER DEFAULT 0")
-            if "last_entry" not in cols:
-                conn.execute("ALTER TABLE users ADD COLUMN last_entry TEXT")
-            if "last_exit" not in cols:
-                conn.execute("ALTER TABLE users ADD COLUMN last_exit TEXT")
-            # face_embedding may be BLOB in old schema — leave as-is; new writes use TEXT JSON
+                    CREATE TABLE IF NOT EXISTS access_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nfc_uid TEXT,
+                        user_id INTEGER,
+                        event_type TEXT NOT NULL,
+                        factor_used TEXT,
+                        reason TEXT,
+                        created_at TEXT NOT NULL,
+                        FOREIGN KEY(user_id) REFERENCES users(id)
+                    );
+
+                    CREATE TABLE IF NOT EXISTS ai_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        alert_type TEXT NOT NULL,
+                        message TEXT,
+                        severity TEXT DEFAULT 'medium',
+                        related_log_ids TEXT,
+                        created_at TEXT NOT NULL,
+                        is_resolved INTEGER DEFAULT 0
+                    );
+                    """
+                )
+                cols = {r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()}
+                if "position" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN position TEXT")
+                if "face_enrolled" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN face_enrolled INTEGER DEFAULT 0")
+                if "last_entry" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN last_entry TEXT")
+                if "last_exit" not in cols:
+                    conn.execute("ALTER TABLE users ADD COLUMN last_exit TEXT")
+        except sqlite3.DatabaseError:
+            self._quarantine_bad_db()
+            with self._get_conn() as conn:
+                conn.executescript(
+                    """
+                    CREATE TABLE IF NOT EXISTS users (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nfc_uid TEXT UNIQUE NOT NULL,
+                        name TEXT,
+                        position TEXT,
+                        pin_hash TEXT,
+                        fingerprint_hash TEXT,
+                        face_embedding TEXT,
+                        face_enrolled INTEGER DEFAULT 0,
+                        is_active INTEGER DEFAULT 1,
+                        created_at TEXT NOT NULL,
+                        updated_at TEXT,
+                        last_entry TEXT,
+                        last_exit TEXT
+                    );
+                    CREATE TABLE IF NOT EXISTS access_logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        nfc_uid TEXT,
+                        user_id INTEGER,
+                        event_type TEXT NOT NULL,
+                        factor_used TEXT,
+                        reason TEXT,
+                        created_at TEXT NOT NULL
+                    );
+                    CREATE TABLE IF NOT EXISTS ai_alerts (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        alert_type TEXT NOT NULL,
+                        message TEXT,
+                        severity TEXT DEFAULT 'medium',
+                        related_log_ids TEXT,
+                        created_at TEXT NOT NULL,
+                        is_resolved INTEGER DEFAULT 0
+                    );
+                    """
+                )
         logger.info(f"БД инициализирована: {self.db_path}")
 
     def add_user(
@@ -160,7 +237,6 @@ class DBService:
             return cur.rowcount > 0
 
     def get_face_gallery(self) -> List[tuple]:
-        """Return list of (user_id, embedding_list) for active enrolled users."""
         with self._get_conn() as conn:
             rows = conn.execute(
                 "SELECT id, face_embedding FROM users WHERE is_active = 1 AND face_enrolled = 1 AND face_embedding IS NOT NULL"
@@ -235,7 +311,6 @@ class DBService:
     @staticmethod
     def _user_row(row: sqlite3.Row) -> Dict[str, Any]:
         d = dict(row)
-        # Never send raw embedding to UI
         d.pop("face_embedding", None)
         d.pop("pin_hash", None)
         d.pop("fingerprint_hash", None)
