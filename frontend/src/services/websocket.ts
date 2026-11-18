@@ -7,16 +7,22 @@ export class LessWebSocket {
   private onJson: MessageHandler | null = null;
   private onBinary: BinaryHandler | null = null;
   private reconnectTimer: number | null = null;
+  private intentionalClose = false;
 
   constructor(url = "ws://127.0.0.1:8000/ws") {
     this.url = url;
   }
 
   connect() {
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN ||
+        this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
+    this.intentionalClose = false;
     this.ws = new WebSocket(this.url);
     this.ws.binaryType = "blob";
 
@@ -33,14 +39,16 @@ export class LessWebSocket {
           const json = JSON.parse(event.data);
           this.onJson?.(json);
         } catch {
-          // ignore
+          // ignore non-json text
         }
       }
     };
 
     this.ws.onclose = () => {
-      console.log("[WS] closed, reconnect in 2s");
-      this.scheduleReconnect();
+      console.log("[WS] closed");
+      if (!this.intentionalClose) {
+        this.scheduleReconnect();
+      }
     };
 
     this.ws.onerror = () => {
@@ -71,12 +79,20 @@ export class LessWebSocket {
   }
 
   disconnect() {
+    this.intentionalClose = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    this.ws?.close();
-    this.ws = null;
+    if (this.ws) {
+      try {
+        this.send("stop_stream");
+      } catch {
+        // ignore
+      }
+      this.ws.close();
+      this.ws = null;
+    }
   }
 }
 

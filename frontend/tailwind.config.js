@@ -5,17 +5,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        surface: "#0f131c",
-        "surface-low": "#181c24",
-        "surface-high": "#262a33",
-        "surface-highest": "#31353e",
+        surface: "#0c0f14",
+        "surface-low": "#12161e",
+        "surface-high": "#1a1f2a",
+        "surface-highest": "#252b38",
         primary: "#4cd7f6",
         "primary-container": "#06b6d4",
         secondary: "#4edea3",
         "secondary-container": "#00a572",
         error: "#ffb4ab",
         "error-container": "#93000a",
-        outline: "#869397",
+        outline: "#6b7482",
       },
       fontFamily: {
         sans: ["Inter", "system-ui", "sans-serif"],
