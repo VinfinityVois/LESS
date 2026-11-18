@@ -41,9 +41,8 @@ export default function VideoFeed() {
   }, []);
 
   useEffect(() => {
-    lessWs.onFrame(handleFrame);
-
-    lessWs.onMessage((msg) => {
+    const offFrame = lessWs.onFrame(handleFrame);
+    const offMsg = lessWs.onMessage((msg) => {
       if (msg?.type === "error" && msg?.message) {
         setError(String(msg.message));
       }
@@ -63,7 +62,10 @@ export default function VideoFeed() {
 
     return () => {
       clearInterval(stallCheck);
-      lessWs.disconnect();
+      offFrame();
+      offMsg();
+      // Do not hard-disconnect here: LivePage may still need the socket.
+      // Stream stops when last consumer leaves AdminShell / page unload.
       if (urlRef.current) URL.revokeObjectURL(urlRef.current);
     };
   }, [handleFrame]);
@@ -86,7 +88,6 @@ export default function VideoFeed() {
         }`}
       />
 
-      {/* Face bounding boxes from YuNet */}
       {connected && faces.length > 0 && (
         <div className="absolute inset-0 pointer-events-none">
           {faces.map((f, i) => (
@@ -123,7 +124,7 @@ export default function VideoFeed() {
               {error ? "Нет связи с камерой" : "Ожидание видеопотока…"}
             </p>
             <p className="text-xs mt-1 text-[#5c6570] font-mono">
-              Backend → WebSocket → JPEG + YuNet
+              Backend → WebSocket → JPEG + YuNet + SFace
             </p>
           </div>
           <button

@@ -49,29 +49,19 @@ export default function LivePage({ status }: { status: any }) {
     return () => clearInterval(t);
   }, [load]);
 
-  // Subscribe to face_match from the same WS used by VideoFeed
   useEffect(() => {
-    const prev = lessWs.onMessage.bind(lessWs);
-    lessWs.onMessage((msg) => {
-      // VideoFeed also registers onMessage — chain via single handler is last-write-wins.
-      // LivePage listens by re-registering a combined approach: use a dedicated listener list would be better,
-      // but for now we only handle face_match here; VideoFeed handles face_detection on its own registration.
-      // To avoid clobbering, we patch both interests via a thin multiplexer in this effect only for face_match
-      // by reading after VideoFeed mounts — order depends on mount order.
-      if (msg?.type === "face_match") {
-        setMatch({
-          state: msg.state || (msg.matched ? "matched" : "unknown"),
-          matched: Boolean(msg.matched),
-          user_id: msg.user_id ?? null,
-          name: msg.name ?? null,
-          score: typeof msg.score === "number" ? msg.score : null,
-          margin: msg.margin,
-        });
-      }
+    const off = lessWs.onMessage((msg) => {
+      if (msg?.type !== "face_match") return;
+      setMatch({
+        state: msg.state || (msg.matched ? "matched" : "unknown"),
+        matched: Boolean(msg.matched),
+        user_id: msg.user_id ?? null,
+        name: msg.name ?? null,
+        score: typeof msg.score === "number" ? msg.score : null,
+        margin: msg.margin,
+      });
     });
-    return () => {
-      // leave handler; VideoFeed will re-bind on its lifecycle
-    };
+    return off;
   }, []);
 
   const statusLabel =
@@ -145,9 +135,15 @@ export default function LivePage({ status }: { status: any }) {
                   match.matched ? "border-l-secondary" : "border-l-primary"
                 }`}
               >
-                <LockOpen className={`w-4.5 h-4.5 shrink-0 ${match.matched ? "text-secondary" : "text-primary"}`} />
+                <LockOpen
+                  className={`w-4.5 h-4.5 shrink-0 ${match.matched ? "text-secondary" : "text-primary"}`}
+                />
                 <div>
-                  <div className={`text-sm font-medium ${match.matched ? "text-secondary" : "text-primary"}`}>
+                  <div
+                    className={`text-sm font-medium ${
+                      match.matched ? "text-secondary" : "text-primary"
+                    }`}
+                  >
                     {match.matched && match.name
                       ? match.name
                       : match.state === "unknown"
