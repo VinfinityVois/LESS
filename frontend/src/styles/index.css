@@ -5,20 +5,34 @@
 html, body, #root {
   margin: 0;
   height: 100%;
-  background: #0f131c;
+  background: #0c0f14;
 }
 
 body {
   font-family: Inter, system-ui, sans-serif;
   overscroll-behavior: none;
+  color: #e8eaef;
+  -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-thumb { background: #31353e; border-radius: 3px; }
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2f3a;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a404c;
+}
 
 .font-mono-label {
   font-family: "JetBrains Mono", ui-monospace, monospace;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
   font-size: 10px;
   font-weight: 600;
@@ -26,4 +40,19 @@ body {
 
 .font-display {
   font-family: "Space Grotesk", Inter, sans-serif;
+}
+
+/* Focus ring for accessibility */
+input:focus-visible,
+button:focus-visible {
+  outline: 2px solid rgba(76, 215, 246, 0.45);
+  outline-offset: 1px;
+}
+
+/* Subtle card hover */
+.card-hover {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.card-hover:hover {
+  border-color: rgba(76, 215, 246, 0.2);
 }
