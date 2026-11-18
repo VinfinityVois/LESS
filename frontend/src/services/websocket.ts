@@ -6,8 +6,8 @@ type BinaryHandler = (data: Blob) => void;
 export class LessWebSocket {
   private ws: WebSocket | null = null;
   private url: string;
-  private onJson: MessageHandler | null = null;
-  private onBinary: BinaryHandler | null = null;
+  private jsonHandlers = new Set<MessageHandler>();
+  private binaryHandlers = new Set<BinaryHandler>();
   private reconnectTimer: number | null = null;
   private manuallyDisconnected = false;
 
@@ -18,7 +18,10 @@ export class LessWebSocket {
   connect() {
     this.manuallyDisconnected = false;
     if (!getAuthToken()) return;
-    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+    if (
+      this.ws &&
+      (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)
+    ) {
       return;
     }
 
@@ -30,14 +33,17 @@ export class LessWebSocket {
       if (this.ws !== socket) return;
       console.log("[WS] connected");
       const token = getAuthToken();
-      if (!token) { this.ws?.close(4401, "Unauthorized"); return; }
+      if (!token) {
+        this.ws?.close(4401, "Unauthorized");
+        return;
+      }
       this.send(JSON.stringify({ type: "auth", token }));
     };
 
     socket.onmessage = (event) => {
       if (this.ws !== socket) return;
       if (event.data instanceof Blob) {
-        this.onBinary?.(event.data);
+        this.binaryHandlers.forEach((h) => h(event.data));
       } else {
         try {
           const json = JSON.parse(event.data);
@@ -45,7 +51,7 @@ export class LessWebSocket {
             this.send("start_stream");
             return;
           }
-          this.onJson?.(json);
+          this.jsonHandlers.forEach((h) => h(json));
         } catch {
           // ignore
         }
@@ -82,12 +88,20 @@ export class LessWebSocket {
     }
   }
 
-  onMessage(handler: MessageHandler) {
-    this.onJson = handler;
+  /** Register JSON handler; returns unsubscribe. */
+  onMessage(handler: MessageHandler): () => void {
+    this.jsonHandlers.add(handler);
+    return () => {
+      this.jsonHandlers.delete(handler);
+    };
   }
 
-  onFrame(handler: BinaryHandler) {
-    this.onBinary = handler;
+  /** Register binary frame handler; returns unsubscribe. */
+  onFrame(handler: BinaryHandler): () => void {
+    this.binaryHandlers.add(handler);
+    return () => {
+      this.binaryHandlers.delete(handler);
+    };
   }
 
   disconnect() {
